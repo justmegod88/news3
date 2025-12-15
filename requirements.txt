@@ -1,0 +1,8 @@
+requests
+PyYAML
+feedparser
+jinja2
+python-dateutil
+openai>=1.0.0
+sendgrid
+beautifulsoup4
