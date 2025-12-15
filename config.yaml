@@ -1,4 +1,10 @@
 timezone: Asia/Seoul
+
+# 네이버 뉴스 검색 페이지 수 (1페이지=약 10개)
+# 5페이지=약 50개 / 8페이지=약 80개
+naver_pages: 8
+
+
 keywords:
  - 아큐브
  - 쿠퍼 렌즈
