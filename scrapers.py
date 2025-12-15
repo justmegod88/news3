@@ -250,3 +250,60 @@ def filter_by_keywords(articles: List[Article], cfg: Dict[str, Any]) -> List[Art
        if any(k in text for k in keywords):
            out.append(a)
    return out
+
+def filter_out_finance_articles(articles):
+
+    """
+
+    newsletter.py 호환용 함수.
+
+    - 주식/투자/재무/실적 기사 제외
+
+    - 다비치(가수/연예) 기사 제외
+
+    현재 scrapers.py의 should_exclude_article() 규칙을 그대로 사용함.
+
+    """
+
+    filtered = []
+
+    for a in articles:
+
+        # Article(dataclass) 형태
+
+        if hasattr(a, "title") and hasattr(a, "summary"):
+
+            title = getattr(a, "title", "") or ""
+
+            summary = getattr(a, "summary", "") or ""
+
+            if should_exclude_article(title, summary):
+
+                continue
+
+            filtered.append(a)
+
+            continue
+
+        # dict 형태 (혹시 dict로 기사 전달하는 경우도 대비)
+
+        if isinstance(a, dict):
+
+            title = a.get("title", "") or ""
+
+            summary = a.get("summary", "") or a.get("description", "") or ""
+
+            if should_exclude_article(title, summary):
+
+                continue
+
+            filtered.append(a)
+
+            continue
+
+        # 그 외 타입은 일단 유지
+
+        filtered.append(a)
+
+    return filtered
+ 
