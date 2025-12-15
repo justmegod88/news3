@@ -23,7 +23,7 @@
     h1 {
       margin:0;
       color:#003f7f;
-      font-size:22px;
+      font-size:20px;
     }
     h2 {
       margin-top:28px;
@@ -74,7 +74,7 @@
       width:100%;
       border-collapse:collapse;
       margin-top:4px;       /* 타이틀과 테이블은 가깝게 */
-      margin-bottom:24px;   /* 테이블과 다음 타이틀은 넓게 */
+      margin-bottom:4px;   /* 테이블과 다음 타이틀은 넓게 */
       table-layout:fixed;
     }
     table.news-table th {
@@ -167,7 +167,7 @@
 <div style="font-family: "Pretendard", -apple-system, BlinkMacSystemFont,
             "SF Pro Text", "Apple SD Gothic Neo", "Noto Sans KR",
             "Malgun Gothic", "Segoe UI", "Helvetica Neue", Arial, sans-serif;>
-<div style="font-size:30px; font-weight:700; color:#245caa; margin:0 0 2px 0;">
+<div style="font-size:40=px; font-weight:700; color:#245caa; margin:0 0 2px 0;">
          Daily News Monitoring
 </div>
 <div style="font-size:15px; color:#555;">
@@ -176,7 +176,7 @@
 </div>
 </td>
 <!-- 오른쪽: 로고 -->
-<td align="right" valign="middle" style="padding:0; width:80px;">
+<td align="right" valign="middle" style="padding:0; width:100px;">
 <img
        src="https://play-lh.googleusercontent.com/_LBPbhmNDp7aBDGLcfoWU9hbgEsHeqbJQGyM0fX32Tap2b6Mc4KMWpNsLmUCkBSrIr0V"
        alt="ACUVUE Logo"
@@ -189,8 +189,8 @@
 </table>
 
     <!-- 어제 기사 요약 (임원 브리핑) -->
-    <div style="margin:5px 0 0 0; padding-top:10px; border-top:1px solid #eeeeee;">
-      <div style="font-size:13px; font-weight:700; color:#333; margin-bottom:2px;">
+    <div style="margin:5px 0 0 0; padding-top:15px; border-top:1px solid #eeeeee;">
+      <div style="font-size:13px; font-weight:700; color:#333; margin-bottom:12px;">
     <div class="summary">
       <strong>[어제 기사 AI 브리핑]</strong><br>
       {{ yesterday_summary }}
@@ -239,16 +239,16 @@
           <col class="col-link">
         </colgroup>
         <tr>
-          <th>제목
-          <th>언론사
-          <th>요약
-          <th>링크
+          <th>제목</td>
+          <th>언론사</td>
+          <th>요약</td>
+          <th>링크</td>
         </tr>
         {% for a in company_articles %}
         <tr>
-          <td>{{ a.title }}
-          <td>{{ a.source }}
-          <td>{{ a.summary }}
+          <td>{{ a.title }}</td>
+          <td>{{ a.source }}</td>
+          <td>{{ a.summary }}</td>
           <td><a href="{{ a.link }}" target="_blank">보기</a>
         </tr>
         {% endfor %}
