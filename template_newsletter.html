@@ -1,211 +1,293 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daily News Monitoring</title>
 
-<title>Daily News Monitoring</title>
+  <style>
+    /* ===============================
+       기본 폰트 (모바일 / 아이패드 유지)
+       =============================== */
+    body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      color: #111827;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Apple SD Gothic Neo",
+        "Noto Sans KR",
+        Arial,
+        sans-serif;
+    }
 
-<style>
-/* =========================
-   기본 (모바일/아이패드 유지)
-========================= */
-body {
-  margin: 0;
-  padding: 0;
-  background: #ffffff;
-  font-family: -apple-system, BlinkMacSystemFont,
-               "Apple SD Gothic Neo",
-               "Noto Sans KR",
-               "Malgun Gothic", Arial, sans-serif;
-  color: #222;
-}
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 16px;
+      box-sizing: border-box;
+    }
 
-.container {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 16px;
-}
+    /* ===== 헤더 ===== */
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+    }
 
-h1 {
-  font-size: 20px;
-  margin-bottom: 6px;
-  color: #003f7f;
-}
+    .header-left h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      color: #0b3a74;
+    }
 
-h2 {
-  font-size: 16px;
-  margin: 24px 0 8px;
-  color: #003f7f;
-}
+    .date {
+      margin-top: 6px;
+      font-size: 13px;
+      color: #4b5563;
+    }
 
-.section-box {
-  background: #eaf3ff;
-  border-left: 4px solid #003f7f;
-  padding: 12px;
-  font-size: 13px;
-  line-height: 1.5;
-  margin-bottom: 16px;
-}
+    .header-right {
+      text-align: right;
+      vertical-align: top;
+      width: 120px;
+    }
 
-/* 테이블 공통 */
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
+    .logo {
+      width: 44px;
+      height: 44px;
+      object-fit: contain;
+      border-radius: 6px;
+    }
 
-th, td {
-  border: 1px solid #dce6f2;
-  padding: 6px 6px;
-}
+    /* ===== 섹션 타이틀 ===== */
+    h2 {
+      margin: 22px 0 8px 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: #0b3a74;
+    }
 
-th {
-  background: #f0f6ff;
-  font-weight: 600;
-  text-align: center;
-}
+    /* ===== AI 브리핑 ===== */
+    .summary-box {
+      background: #eaf3ff;
+      border-left: 4px solid #0b3a74;
+      padding: 12px;
+      margin: 12px 0 14px 0;
+      font-size: 13.5px;
+      line-height: 1.55;
+    }
 
-td {
-  text-align: center;
-  vertical-align: middle;
-}
+    /* ===== ACUVUE 카드 ===== */
+    .card {
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 12px;
+      margin: 10px 0;
+    }
 
-td.title {
-  text-align: left;
-}
+    .card-title {
+      font-size: 14.5px;
+      font-weight: 700;
+      margin: 0 0 6px 0;
+    }
 
-/* =========================
-   ✅ PC 전용 수정 (중요)
-========================= */
-@media screen and (min-width: 1024px) {
+    .meta {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
 
-  /* 전체 가로폭 살짝 확장 (600 → 650) */
-  .container {
-    max-width: 650px;
-    padding: 20px;
-  }
+    .card-summary {
+      font-size: 13px;
+      line-height: 1.55;
+      margin-bottom: 10px;
+    }
 
-  /* 1️⃣ 우측 상단 로고 */
-  .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
+    .btn {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #0b3a74;
+      text-decoration: none;
+    }
 
-  .header img {
-    height: 28px;
-  }
+    /* ===== 테이블 ===== */
+    .table-title {
+      margin: 22px 0 6px 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: #0b3a74;
+    }
 
-  /* 2️⃣ 폰트: 말은 고딕 (이미 기본 적용됨) */
+    .subcat {
+      margin: 14px 0 6px 0;
+      font-size: 14px;
+      font-weight: 700;
+    }
 
-  /* 3️⃣ ACUVUE 기사 / 어제 기사 리스트 폰트 크기 통일 */
-  .section-title {
-    font-size: 15px;
-    font-weight: 700;
-    margin: 24px 0 8px;
-  }
+    table.news {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      margin-bottom: 12px;
+    }
 
-  /* 4️⃣ 하늘색 테이블 세로 폭 줄이기 */
-  th, td {
-    padding: 4px 6px;
-  }
+    table.news th,
+    table.news td {
+      border: 1px solid #d1d5db;
+      padding: 12px 10px;
+      font-size: 12.5px;
+      line-height: 1.35;
+      vertical-align: middle;
+      text-align: center;
+      word-break: break-word;
+    }
 
-  /* 5️⃣ 언론사 위치 통일 */
-  td.press {
-    width: 90px;
-    text-align: center;
-  }
+    table.news th {
+      background: #eaf3ff;
+      font-weight: 700;
+    }
 
-  /* 6️⃣ 테이블 열 너비 고정 */
-  th.title, td.title { width: 45%; }
-  th.press, td.press { width: 15%; }
-  th.summary, td.summary { width: 30%; }
-  th.link, td.link { width: 10%; }
+    .col-title { width: 44%; }
+    .col-source { width: 16%; }
+    .col-summary { width: 30%; }
+    .col-link { width: 10%; }
 
-  /* 7️⃣ 제목 / 언론사 / 요약 / 링크 중앙 정렬 유지 */
-  td.summary { text-align: center; }
+    .link a {
+      font-weight: 700;
+      color: #0b3a74;
+      text-decoration: none;
+    }
 
-  /* 8️⃣ 문구 변경 대응 */
-  .all-article-title::before {
-    content: "어제 기사 리스트";
-  }
+    .muted {
+      font-size: 12.5px;
+      color: #6b7280;
+      text-align: center;
+    }
 
-  /* 9️⃣ AI 브리핑 여백 살짝만 */
-  .section-box {
-    padding-left: 10px;
-    padding-right: 10px;
-  }
-}
-</style>
+    .footer {
+      margin-top: 18px;
+      font-size: 11.5px;
+      color: #6b7280;
+      text-align: center;
+    }
+
+    /* ===============================
+       PC 전용 수정
+       - 레이아웃만 변경
+       - 폰트는 '깨질 경우 대비용 fallback'
+       =============================== */
+    @media screen and (min-width: 1024px) {
+
+      /* 가로폭 650 */
+      .container {
+        max-width: 650px !important;
+      }
+
+      /* AI 브리핑 좌우 여백 살짝 */
+      .summary-box {
+        padding-left: 14px !important;
+        padding-right: 14px !important;
+      }
+
+      /* 테이블 세로 폭 압축 */
+      table.news th,
+      table.news td {
+        padding: 9px 10px !important;
+      }
+
+      /* ✅ PC에서만 최후 fallback 폰트 */
+      body {
+        font-family:
+          -apple-system,
+          BlinkMacSystemFont,
+          "Apple SD Gothic Neo",
+          "Noto Sans KR",
+          "Malgun Gothic",
+          Arial,
+          sans-serif !important;
+      }
+    }
+  </style>
 </head>
 
 <body>
-<div class="container">
+  <div class="container">
 
-  <!-- 헤더 -->
-  <div class="header">
-    <h1>Daily News Monitoring</h1>
-    <!-- 로고 -->
-    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Johnson_%26_Johnson_Logo.svg/2560px-Johnson_%26_Johnson_Logo.svg.png" alt="logo"/>
-  </div>
+    <!-- 헤더 -->
+    <table class="header-table" role="presentation">
+      <tr>
+        <td class="header-left">
+          <h1>Daily News Monitoring</h1>
+          <div class="date">{{ today_date }}</div>
+        </td>
+        <td class="header-right">
+          <img src="logo.png" class="logo" alt="logo" />
+        </td>
+      </tr>
+    </table>
 
-  <div style="font-size:12px;color:#666;margin-bottom:12px;">
-    {{ today_date }}
-  </div>
+    <h2>어제 기사 AI 브리핑</h2>
+    <div class="summary-box">{{ yesterday_summary }}</div>
 
-  <!-- AI 브리핑 -->
-  <div class="section-box">
-    {{ yesterday_summary }}
-  </div>
+    <h2>🔷 ACUVUE 기사</h2>
 
-  <!-- ACUVUE -->
-  <div class="section-title">ACUVUE 기사</div>
-  {% if acuvue_articles %}
-  <table>
-    <tr>
-      <th class="title">제목</th>
-      <th class="press">언론사</th>
-      <th class="summary">요약</th>
-      <th class="link">링크</th>
-    </tr>
-    {% for a in acuvue_articles %}
-    <tr>
-      <td class="title">{{ a.title }}</td>
-      <td class="press">{{ a.source }}</td>
-      <td class="summary">{{ a.summary }}</td>
-      <td class="link"><a href="{{ a.link }}">보기</a></td>
-    </tr>
+    {% if acuvue_articles %}
+      {% for a in acuvue_articles %}
+        <div class="card">
+          <div class="card-title">{{ a.title }}</div>
+          <div class="meta">{{ a.source }} • {{ a.published.strftime("%Y-%m-%d %H:%M") }}</div>
+          <div class="card-summary">{{ a.summary }}</div>
+          <a class="btn" href="{{ a.link }}">기사 보기 →</a>
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="muted">어제는 별도의 아큐브 관련 기사가 수집되지 않았습니다.</p>
+    {% endif %}
+
+    <div class="table-title">📋 어제 기사 리스트</div>
+
+    {% set sections = [
+      ("1) 업체별 활동 (타사)", company_articles),
+      ("2) 제품 카테고리별 (난시렌즈·멀티포컬 렌즈 등)", product_articles),
+      ("3) 업계 동향 (협회/컨퍼런스/체인/안경 등)", trend_articles),
+      ("4) 눈 건강 · 캠페인", eye_health_articles)
+    ] %}
+
+    {% for title, items in sections %}
+      <div class="subcat">{{ title }}</div>
+      <table class="news">
+        <thead>
+          <tr>
+            <th class="col-title">제목</th>
+            <th class="col-source">언론사</th>
+            <th class="col-summary">요약</th>
+            <th class="col-link">링크</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if items %}
+            {% for a in items %}
+              <tr>
+                <td>{{ a.title }}</td>
+                <td>{{ a.source }}</td>
+                <td>{{ a.summary }}</td>
+                <td class="link"><a href="{{ a.link }}">보기</a></td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="4" class="muted">해당 카테고리 기사가 없습니다.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
     {% endfor %}
-  </table>
-  {% else %}
-  <div style="font-size:12px;color:#666;">어제 수집된 ACUVUE 기사가 없습니다.</div>
-  {% endif %}
 
-  <!-- 어제 기사 리스트 -->
-  <div class="section-title all-article-title"></div>
-
-  {% for section in [company_articles, product_articles, trend_articles, eye_health_articles] %}
-  {% if section %}
-  <table style="margin-top:8px;">
-    <tr>
-      <th class="title">제목</th>
-      <th class="press">언론사</th>
-      <th class="summary">요약</th>
-      <th class="link">링크</th>
-    </tr>
-    {% for a in section %}
-    <tr>
-      <td class="title">{{ a.title }}</td>
-      <td class="press">{{ a.source }}</td>
-      <td class="summary">{{ a.summary }}</td>
-      <td class="link"><a href="{{ a.link }}">보기</a></td>
-    </tr>
-    {% endfor %}
-  </table>
-  {% endif %}
-  {% endfor %}
-
-</div>
+    <div class="footer">이 뉴스레터는 자동 생성되었습니다.</div>
+  </div>
 </body>
 </html>
