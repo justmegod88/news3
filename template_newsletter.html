@@ -1,389 +1,487 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body 
-    {
-      /* 이메일용: 감각적이면서도 호환성 높은 폰트 스택(웹폰트 로딩 없이) */
-      font-family: "Pretendard", -apple-system, BlinkMacSystemFont,
-            "SF Pro Text", "Apple SD Gothic Neo", "Noto Sans KR",
-            "Malgun Gothic", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-      background:#ffffff;
-      padding:0;
-      margin:0;
-    }
-    .container {
-      max-width:520px;
-      margin:0 auto;
-      padding:16px;
-      box-sizing:border-box;
-    }
-    h1 {
-      margin:0;
-      color:#003f7f;
-      font-size:22px;
-      font-weight:700;
-      letter-spacing:-0.3px;
-    }
-    h2 {
-      margin-top:28px;
-      margin-bottom:8px;
-      color:#003f7f;
-      font-size:18px;
-      font-weight:650;
-      letter-spacing:-0.2px;
-    }
-    .summary {
-      background:#eaf3ff;
-      padding:12px;
-      border-left:4px solid #003f7f;
-      margin:16px 0 20px 0;
-      font-size:13px;
-      line-height:1.5;
-    }
-    .card {
-      border:1px solid #e0e0e0;
-      padding:12px;
-      border-radius:6px;
-      margin-bottom:12px;
-      font-size:13px;
-      background:#ffffff;
-    }
-    .card-flex {
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      gap:12px;
-    }
-    .card-title {
-      font-weight:bold;
-      font-size:15px;
-      margin-bottom:4px;
-    }
-    .card-meta {
-      font-size:12px;
-      color:#777;
-      margin:2px 0 6px 0;
-    }
-    .card-summary {
-      font-size:13px;
-      margin:4px 0 8px 0;
-      line-height:1.5;
-    }
+import datetime as dt
 
-    /* 공통 테이블 스타일 */
-    table.news-table {
-      width:100%;
-      border-collapse:collapse;
-      margin-top:4px;       /* 타이틀과 테이블은 가깝게 */
-      margin-bottom:24px;   /* 테이블과 다음 타이틀은 넓게 */
-      table-layout:fixed;
-    }
-    table.news-table th {
-      background:#f3f7ff;
-      padding:8px;
-      text-align:left;
-      font-size:12px;
-      border-bottom:1px solid #dde3f5;
-    }
-    table.news-table td {
-      padding:8px;
-      border-top:1px solid #eee;
-      font-size:12px;
-      vertical-align:top;
-      word-wrap:break-word;
-      word-break:break-word;
-    }
-    /* 줄무늬 효과(연하게) */
-    table.news-table tr:nth-child(even) td {
-      background:#fafafa;
-    }
+from dataclasses import dataclass
 
-    /* 컬럼 비율: 제목3 / 언론사2 / 요약4 / 링크1 */
-    .col-title  { width:30%; }
-    .col-press  { width:20%; }
-    .col-sum    { width:40%; }
-    .col-link   { width:10%; }
+from typing import List, Dict, Any, Optional
 
-    a {
-      color:#0066cc;
-      text-decoration:none;
-    }
-    a:hover {
-      text-decoration:underline;
-    }
-    .footer {
-      text-align:center;
-      font-size:11px;
-      color:#777;
-      margin-top:24px;
-    }
-    img.thumb {
-      width:120px;
-      height:auto;
-      object-fit:cover;
-      border-radius:4px;
-      display:block;
-    }
-    img.logo {
-      width:70px;
-      height:70px;
-      object-fit:contain;
-      border-radius:8px;
-      margin-left:12px;
-      display:block;
-    }
+from urllib.parse import quote_plus
 
-    /* 데스크톱(웹메일/브라우저) 전용: iPad는 최대한 영향 없게 기준을 크게 잡음 */
-    @media screen and (min-width: 1100px) {
-      body { font-size:15px; line-height:1.55; }
-      h1 { font-size:24px; font-weight:750; letter-spacing:-0.4px; }
-      h2 { font-size:18px; font-weight:650; }
-      .summary { font-size:14px; line-height:1.65; }
-      .card { font-size:14px; }
-      .card-title { font-size:16px; }
-    }
-    /* iPhone 등 모바일 */
-    @media only screen and (max-width: 480px) {
-      .container {
-        padding:12px;
-      }
-      .card-flex {
-        flex-direction:column;
-      }
-      img.thumb {
-        width:100%;
-        max-width:200px;
-      }
-    }
+import re
 
-    /* 데스크톱(웹메일)에서만 타이포를 조금 더 단단하게 */
-    @media screen and (min-width: 1100px) {
-      body { font-size:15px; line-height:1.55; }
-      .summary { font-size:14px; line-height:1.65; }
-      .card { font-size:14px; }
-      .card-title { font-size:16px; }
-      table.news-table th, table.news-table td { font-size:13px; }
-      h1 { font-size:24px; }
-      h2 { font-size:19px; }
-    }
-  </style>
+import html
 
-  <!--[if mso]>
-  <style type="text/css">
-    /* Outlook(데스크톱) 전용: 가장 안정적인 Windows 폰트로 강제 */
-    body, table, td, div, p, a, span {
-      font-family: "Malgun Gothic","Segoe UI",Arial,sans-serif !important;
-    }
-    h1 { font-size:24px !important; font-weight:700 !important; letter-spacing:-0.3px !important; }
-    h2 { font-size:18px !important; font-weight:600 !important; }
-    .summary { font-size:14px !important; line-height:1.6 !important; }
-  </style>
-  <![endif]-->
-</head>
-<body>
-  <!-- 고정 폭 테이블 래핑: 데스크톱(특히 Outlook)에서 가로로 과하게 늘어나는 문제 방지 -->
-  <center>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;">
-    <tr>
-      <td align="center" style="padding:0;">
-        <table role="presentation" width="520" cellpadding="0" cellspacing="0" border="0" style="width:520px; max-width:520px;">
-          <tr>
-            <td style="padding:0;">
-              <div class="container">
+import feedparser
 
-<!-- 헤더: 제목 + 날짜 + 우측 Acuvue 로고 (테이블 기반) -->
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
-<tr>
-<!-- 왼쪽: 타이틀 + 날짜 -->
-<td align="left" valign="middle" style="padding:0;">
-<div style="font-family: Arial, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;">
-<div style="font-size:24px; font-weight:700; color:#245caa; margin:0 0 2px 0;">
-         Daily News Monitoring
-</div>
-<div style="font-size:11px; color:#555;">
-         {{ today_date }}
-</div>
-</div>
-</td>
-<!-- 오른쪽: 로고 -->
-<td align="right" valign="middle" style="padding:0; width:80px;">
-<img
-       src="https://play-lh.googleusercontent.com/_LBPbhmNDp7aBDGLcfoWU9hbgEsHeqbJQGyM0fX32Tap2b6Mc4KMWpNsLmUCkBSrIr0V"
-       alt="ACUVUE Logo"
-       width="64"
-       height="64"
-       style="display:block; border-radius:20px;"
->
-</td>
-</tr>
-</table>
+import yaml
 
-    <!-- 어제 기사 요약 (임원 브리핑) -->
-    <div class="summary">
-      <strong>최근 24시간 기사 AI 브리핑</strong><br>
-      {{ yesterday_summary }}
-    </div>
+from dateutil import parser as date_parser
 
-    <!-- ACUVUE 기사 -->
-    <h2>🔷 ACUVUE 기사</h2>
+# zoneinfo는 Python 3.9+ 기본
 
-    {% if acuvue_articles %}
-      {% for a in acuvue_articles %}
-      <div class="card">
-        <div class="card-flex">
-          <div style="flex:1;">
-            <div class="card-title">{{ a.title }}</div>
-            <div class="card-meta">{{ a.source }} • {{ a.published.strftime("%Y-%m-%d %H:%M") }}</div>
-            <div class="card-summary">{{ a.summary }}</div>
-            <a href="{{ a.link }}" target="_blank">기사 보기 →</a>
-          </div>
-          {% if a.image_url %}
-          <div>
-            <img class="thumb" src="{{ a.image_url }}" alt="thumbnail">
-          </div>
-          {% endif %}
-        </div>
-      </div>
-      {% endfor %}
-    {% else %}
-      <div class="card" style="margin-bottom:24px;">
-        최근 24시간 기준으로 별도의 아큐브 관련 기사가 수집되지 않았습니다.
-      </div>
-    {% endif %}
+try:
 
-    <!-- 전체 기사 리스트 -->
-    <h2>📋 최근 24시간 전체 기사 리스트</h2>
+    from zoneinfo import ZoneInfo
 
-    <!-- 1) 업체별 활동 (타사) -->
-    <div style="margin:12px 0 0 0; padding-top:10px; border-top:1px solid #eeeeee;">
-      <div style="font-size:13px; font-weight:700; color:#333; margin-bottom:2px;">
-        1) 업체별 활동 (타사)
-      </div>
-      <table class="news-table">
-        <colgroup>
-          <col class="col-title">
-          <col class="col-press">
-          <col class="col-sum">
-          <col class="col-link">
-        </colgroup>
-        <tr>
-          <th>제목</th>
-          <th>언론사</th>
-          <th>요약</th>
-          <th>링크</th>
-        </tr>
-        {% for a in company_articles %}
-        <tr>
-          <td>{{ a.title }}</td>
-          <td>{{ a.source }}</td>
-          <td>{{ a.summary }}</td>
-          <td><a href="{{ a.link }}" target="_blank">보기</a></td>
-        </tr>
-        {% endfor %}
-      </table>
-    </div>
+except Exception:
 
-    <!-- 2) 제품 카테고리별 -->
-    <div style="margin:0 0 0 0; padding-top:10px; border-top:1px solid #eeeeee;">
-      <div style="font-size:13px; font-weight:700; color:#333; margin-bottom:2px;">
-        2) 제품 카테고리별 (난시렌즈·멀티포컬 렌즈 등)
-      </div>
-      <table class="news-table">
-        <colgroup>
-          <col class="col-title">
-          <col class="col-press">
-          <col class="col-sum">
-          <col class="col-link">
-        </colgroup>
-        <tr>
-          <th>제목</th>
-          <th>언론사</th>
-          <th>요약</th>
-          <th>링크</th>
-        </tr>
-        {% for a in product_articles %}
-        <tr>
-          <td>{{ a.title }}</td>
-          <td>{{ a.source }}</td>
-          <td>{{ a.summary }}</td>
-          <td><a href="{{ a.link }}" target="_blank">보기</a></td>
-        </tr>
-        {% endfor %}
-      </table>
-    </div>
+    ZoneInfo = None  # 아래에서 fallback 처리
 
-    <!-- 3) 업계 동향 -->
-    <div style="margin:0 0 0 0; padding-top:10px; border-top:1px solid #eeeeee;">
-      <div style="font-size:13px; font-weight:700; color:#333; margin-bottom:2px;">
-        3) 업계 동향 (협회/컨퍼런스/체인/안경 등)
-      </div>
-      <table class="news-table">
-        <colgroup>
-          <col class="col-title">
-          <col class="col-press">
-          <col class="col-sum">
-          <col class="col-link">
-        </colgroup>
-        <tr>
-          <th>제목</th>
-          <th>언론사</th>
-          <th>요약</th>
-          <th>링크</th>
-        </tr>
-        {% for a in trend_articles %}
-        <tr>
-          <td>{{ a.title }}</td>
-          <td>{{ a.source }}</td>
-          <td>{{ a.summary }}</td>
-          <td><a href="{{ a.link }}" target="_blank">보기</a></td>
-        </tr>
-        {% endfor %}
-      </table>
-    </div>
+import requests
 
-    <!-- 4) 눈 건강 · 캠페인 -->
-    <div style="margin:0 0 0 0; padding-top:10px; border-top:1px solid #eeeeee;">
-      <div style="font-size:13px; font-weight:700; color:#333; margin-bottom:2px;">
-        4) 눈 건강 · 캠페인
-      </div>
-      <table class="news-table">
-        <colgroup>
-          <col class="col-title">
-          <col class="col-press">
-          <col class="col-sum">
-          <col class="col-link">
-        </colgroup>
-        <tr>
-          <th>제목</th>
-          <th>언론사</th>
-          <th>요약</th>
-          <th>링크</th>
-        </tr>
-        {% for a in eye_health_articles %}
-        <tr>
-          <td>{{ a.title }}</td>
-          <td>{{ a.source }}</td>
-          <td>{{ a.summary }}</td>
-          <td><a href="{{ a.link }}" target="_blank">보기</a></td>
-        </tr>
-        {% endfor %}
-      </table>
-    </div>
+from bs4 import BeautifulSoup
 
-    <div class="footer">
-      이 뉴스레터는 자동 생성되었습니다.
-    </div>
 
-              </div>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-  </center>
-</body>
-</html>
+GOOGLE_NEWS_RSS_BASE = "https://news.google.com/rss/search"
+
+
+# =========================
+
+# Data model
+
+# =========================
+
+@dataclass
+
+class Article:
+
+    title: str
+
+    link: str
+
+    published: dt.datetime
+
+    source: str
+
+    summary: str
+
+    image_url: Optional[str] = None
+
+
+# =========================
+
+# Exclusion rules
+
+# =========================
+
+FINANCE_KEYWORDS = [
+
+    "주가", "주식", "증시", "투자", "재무", "실적",
+
+    "매출", "영업이익", "순이익", "배당",
+
+    "eps", "per", "pbr", "roe",
+
+    "상장", "ipo", "공모", "증권", "리포트",
+
+    "목표주가", "시가총액", "ir", "주주"
+
+]
+
+DAVICHI_SINGER_HINTS = [
+
+    "가수", "음원", "신곡", "컴백", "앨범",
+
+    "콘서트", "공연", "뮤직비디오",
+
+    "차트", "유튜브", "방송", "예능",
+
+    "ost", "드라마 ost"
+
+]
+
+
+def _normalize(text: str) -> str:
+
+    return re.sub(r"\s+", " ", (text or "")).strip()
+
+
+def should_exclude_article(title: str, summary: str) -> bool:
+
+    full = f"{_normalize(title)} {_normalize(summary)}".lower()
+
+    # 1) 주식/투자/재무/실적 제외
+
+    if any(k in full for k in FINANCE_KEYWORDS):
+
+        return True
+
+    # 2) 다비치 연예(가수)만 제외
+
+    if "다비치" in full and any(h in full for h in DAVICHI_SINGER_HINTS):
+
+        return True
+
+    return False
+
+
+# =========================
+
+# Config
+
+# =========================
+
+def load_config(path: str = "config.yaml") -> Dict[str, Any]:
+
+    with open(path, "r", encoding="utf-8") as f:
+
+        return yaml.safe_load(f)
+
+
+def _get_tz(cfg: Dict[str, Any]):
+
+    tz_name = cfg.get("timezone", "Asia/Seoul")
+
+    if ZoneInfo is None:
+
+        # Python 3.8 이하일 가능성: dateutil tz로 fallback
+
+        from dateutil import tz
+
+        return tz.gettz(tz_name)
+
+    return ZoneInfo(tz_name)
+
+
+# =========================
+
+# Helpers
+
+# =========================
+
+def parse_rss_datetime(value: str, tz) -> dt.datetime:
+
+    d = date_parser.parse(value)
+
+    if d.tzinfo is None:
+
+        return d.replace(tzinfo=tz)
+
+    return d.astimezone(tz)
+
+
+def build_google_news_url(query: str) -> str:
+
+    q = quote_plus(query)
+
+    return f"{GOOGLE_NEWS_RSS_BASE}?q={q}&hl=ko&gl=KR&ceid=KR:ko"
+
+
+def clean_title(raw: str) -> str:
+
+    t = (raw or "").strip()
+
+    return t.split(" - ")[0] if " - " in t else t
+
+
+def clean_summary(raw: str) -> str:
+
+    text = raw or ""
+
+    text = re.sub(r"<.*?>", " ", text)
+
+    text = re.sub(r"https?://\S+", " ", text)
+
+    text = html.unescape(text)
+
+    return re.sub(r"\s+", " ", text).strip()
+
+
+# =========================
+
+# Google News
+
+# =========================
+
+def fetch_from_google_news(query: str, source_name: str, tz) -> List[Article]:
+
+    feed = feedparser.parse(build_google_news_url(query))
+
+    articles: List[Article] = []
+
+    for e in feed.entries:
+
+        title = clean_title(getattr(e, "title", ""))
+
+        link = getattr(e, "link", "")
+
+        summary = clean_summary(getattr(e, "summary", ""))
+
+        raw_date = getattr(e, "published", None) or getattr(e, "updated", None)
+
+        published = parse_rss_datetime(raw_date, tz) if raw_date else dt.datetime.now(tz)
+
+        if should_exclude_article(title, summary):
+
+            continue
+
+        articles.append(
+
+            Article(
+
+                title=title,
+
+                link=link,
+
+                published=published,
+
+                source=source_name,
+
+                summary=summary,
+
+                image_url=None,
+
+            )
+
+        )
+
+    return articles
+
+
+# =========================
+
+# Naver News
+
+# =========================
+
+def parse_naver_published_time(url: str, tz) -> Optional[dt.datetime]:
+
+    """
+
+    네이버 기사 본문에서 발행시각을 최대한 정확히 파싱
+
+    """
+
+    try:
+
+        headers = {"User-Agent": "Mozilla/5.0"}
+
+        r = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
+
+        if r.status_code >= 400:
+
+            return None
+
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        # 1) meta published_time (가장 정확)
+
+        meta = soup.find("meta", property="article:published_time")
+
+        if meta and meta.get("content"):
+
+            return date_parser.parse(meta["content"]).astimezone(tz)
+
+        # 2) Naver 언론사 기사 페이지의 data-date-time
+
+        t = soup.select_one("span.media_end_head_info_datestamp_time")
+
+        if t and t.get("data-date-time"):
+
+            return date_parser.parse(t["data-date-time"]).astimezone(tz)
+
+        return None
+
+    except Exception:
+
+        return None
+
+
+def fetch_from_naver_news(keyword: str, source_name: str, tz) -> List[Article]:
+
+    """
+
+    네이버 뉴스 검색 -> 기사 리스트 -> 기사 본문 들어가서 published_time 추출
+
+    """
+
+    base_url = "https://search.naver.com/search.naver"
+
+    params = {"where": "news", "query": keyword, "sort": 1}
+
+    headers = {"User-Agent": "Mozilla/5.0"}
+
+    r = requests.get(base_url, params=params, headers=headers, timeout=10)
+
+    if r.status_code != 200:
+
+        return []
+
+    soup = BeautifulSoup(r.text, "html.parser")
+
+    items = soup.select("div.news_wrap.api_ani_send")
+
+    articles: List[Article] = []
+
+    for it in items:
+
+        a = it.select_one("a.news_tit")
+
+        if not a:
+
+            continue
+
+        title = a.get("title", "").strip()
+
+        link = a.get("href", "").strip()
+
+        summary_tag = it.select_one("div.news_dsc")
+
+        summary = summary_tag.get_text(strip=True) if summary_tag else ""
+
+        if should_exclude_article(title, summary):
+
+            continue
+
+        published = parse_naver_published_time(link, tz)
+
+        if not published:
+
+            # 날짜를 못 잡으면 "어제 기준" 필터를 정확히 못하므로 제외
+
+            continue
+
+        press = it.select_one("a.info.press")
+
+        source = press.get_text(strip=True) if press else source_name
+
+        articles.append(
+
+            Article(
+
+                title=title,
+
+                link=link,
+
+                published=published,
+
+                source=source,
+
+                summary=summary,
+
+                image_url=None,
+
+            )
+
+        )
+
+    return articles
+
+
+# =========================
+
+# Orchestration
+
+# =========================
+
+def fetch_all_articles(cfg: Dict[str, Any]) -> List[Article]:
+
+    tz = _get_tz(cfg)
+
+    keywords = cfg.get("keywords", [])
+
+    sources = cfg.get("news_sources", [])
+
+    seen = set()
+
+    all_articles: List[Article] = []
+
+    for src in sources:
+
+        name = src.get("name", "")
+
+        host = (src.get("host") or "").strip()
+
+        for kw in keywords:
+
+            kw = (kw or "").strip()
+
+            if not kw:
+
+                continue
+
+            if name == "NaverNews":
+
+                fetched = fetch_from_naver_news(kw, name, tz)
+
+            else:
+
+                base_query = f"{kw} site:{host}" if host else kw
+
+                query = f"{base_query} when:1d"
+
+                fetched = fetch_from_google_news(query, name or "GoogleNews", tz)
+
+            for a in fetched:
+
+                key = (a.title, a.link)
+
+                if key in seen:
+
+                    continue
+
+                seen.add(key)
+
+                all_articles.append(a)
+
+    return all_articles
+
+
+def filter_yesterday_articles(articles: List[Article], cfg: Dict[str, Any]) -> List[Article]:
+
+    """
+
+    한국시간 기준 '어제 00:00 ~ 23:59' 기사만 필터링 (네이버/구글 공통 적용)
+
+    """
+
+    tz = _get_tz(cfg)
+
+    now = dt.datetime.now(tz)
+
+    yesterday = (now.date() - dt.timedelta(days=1))
+
+    start = dt.datetime.combine(yesterday, dt.time.min).replace(tzinfo=tz)
+
+    end = dt.datetime.combine(yesterday, dt.time.max).replace(tzinfo=tz)
+
+    out = []
+
+    for a in articles:
+
+        try:
+
+            ap = a.published.astimezone(tz)
+
+        except Exception:
+
+            ap = a.published
+
+        if start <= ap <= end:
+
+            out.append(a)
+
+    return out
+
+
+def filter_by_keywords(articles: List[Article], cfg: Dict[str, Any]) -> List[Article]:
+
+    """
+
+    ✅ 기존 코드 호환용: 다른 파일에서 호출할 수 있어서 유지
+
+    """
+
+    keywords = [str(k).lower() for k in cfg.get("keywords", []) if k]
+
+    out = []
+
+    for a in articles:
+
+        text = (a.title + " " + (a.summary or "")).lower()
+
+        if any(k in text for k in keywords):
+
+            out.append(a)
+
+    return out
+ 
