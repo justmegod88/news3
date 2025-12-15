@@ -46,12 +46,26 @@ news_sources:
    host: fneyefocus.com
  - name: 옵틱위클리
    host: opticweekly.com
- # 구글 뉴스 전체 검색 (업계지 외 일반 매체용)
+ - name: 헬스조선
+   host: health.chosun.com
+ - name: 뉴시스
+   host: newsis.com
+ - name: 보건뉴스
+   host: bosa.co.kr
+ - name: 뉴스핌
+   host: newspim.com
+
+
+# 구글 뉴스 전체 검색 (업계지 외 일반 매체용)
  - name: 구글 뉴스(전체)
    host: ""
  # 네이버 뉴스
  - name: NaverNews
    host: ""
+
+
+
+   
 email:
  from: justmegod88@gmail.com
  to:
