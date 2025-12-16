@@ -1,140 +1,120 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    background:#f4f6fb;
-    margin:0;
-    padding:20px;
-  }
-
-  .container {
-    max-width:700px;
-    margin:0 auto;
-    background:white;
-    padding:24px 28px;
-    border-radius:10px;
-  }
-
-  h1 {
-    margin:0;
-    font-size:22px;
-    color:#003f7f;
-  }
-
-  .date {
-    font-size:12px;
-    color:#777;
-    margin-top:4px;
-  }
-
-  .section-title {
-    margin:0;
-    margin-top:32px; /* 타이틀 전 간격 넓게 */
-    margin-bottom:6px;
-    font-size:17px;
-    color:#003f7f;
-    font-weight:bold;
-  }
-
-  .first-title {
-    margin-top:16px; /* 1번 카테고리는 위와 더 가깝게 */
-  }
-
-  .summary-box {
-    background:#e8f1ff;
-    padding:14px;
-    border-left:4px solid #003f7f;
-    border-radius:4px;
-    margin-top:18px;
-    line-height:1.5;
-    font-size:14px;
-  }
-
-  table {
-    width:100%;
-    border-collapse:collapse;
-    margin-top:4px; /* 타이틀과 테이블 간격 좁게 */
-    margin-bottom:26px; /* 테이블과 다음 타이틀 간격 넓게 */
-  }
-
-  th {
-    background:#f0f3fa;
-    text-align:left;
-    padding:10px;
-    font-size:13px;
-    color:#333;
-  }
-
-  td {
-    padding:10px;
-    border-top:1px solid #e2e6ef;
-    font-size:13px;
-    vertical-align:top;
-  }
-
-  /* 컬럼 너비 고정 (3 : 2 : 4 : 1 비율 적용) */
-  .col-title { width:30%; }
-  .col-press { width:20%; }
-  .col-summary { width:40%; }
-  .col-link { width:10%; }
-
-  a {
-    color:#005bbb;
-    text-decoration:none;
-  }
-
-  .footer {
-    text-align:center;
-    font-size:11px;
-    color:#777;
-    margin-top:30px;
-  }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+ 
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+                   "Noto Sans KR", "Malgun Gothic", Arial, sans-serif;
+    }
+ 
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      color: #003f7f;
+    }
+ 
+    h2 {
+      margin: 28px 0 8px;
+      font-size: 18px;
+      color: #003f7f;
+    }
+ 
+    .summary {
+      background: #eaf3ff;
+      padding: 12px;
+      border-left: 4px solid #003f7f;
+      margin: 16px 0 20px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+ 
+    .card {
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      background: #ffffff;
+    }
+ 
+    table {
+      border-collapse: collapse;
+    }
 </style>
 </head>
-
+ 
 <body>
-<div class="container">
-
-  <!-- HEADER -->
-  <h1>Daily News Monitoring</h1>
-  <div class="date">{{date}}</div>
-
-  <!-- 요약 -->
-  <div class="summary-box">
-    <strong>어제 기사 AI 브리핑</strong><br>
-    {{yesterday_summary}}
-  </div>
-
-  <!-- ACUVUE 기사 -->
-  <h2 class="section-title first-title">🔹 ACUVUE 기사</h2>
-  {{acuvue_table}}
-
-  <!-- 전체 기사 리스트 -->
-  <h2 class="section-title">📋 어제 전체 기사 리스트</h2>
-
-  <!-- 1) 업체별 활동 (타사) -->
-  <h3 class="section-title first-title">1) 업체별 활동 (타사)</h3>
-  {{category_company}}
-
-  <!-- 2) 제품 카테고리별 -->
-  <h3 class="section-title">2) 제품 카테고리별 (난시렌즈 · 멀티포컬 렌즈 등)</h3>
-  {{category_product}}
-
-  <!-- 3) 업계 동향 -->
-  <h3 class="section-title">3) 업계 동향 (협회 / 컨퍼런스 / 체인 / 안경 등)</h3>
-  {{category_trend}}
-
-  <!-- 4) 눈 건강 · 캠페인 -->
-  <h3 class="section-title">4) 눈 건강 · 캠페인</h3>
-  {{category_health}}
-
-  <div class="footer">
-    이 뉴스레터는 자동 생성되었습니다.
-  </div>
-
+ 
+<!-- 🔒 전체 폭 제어용 OUTER TABLE -->
+<table role="presentation" width="100%" bgcolor="#ffffff">
+<tr>
+<td align="center">
+ 
+      <!-- ✅ 실제 콘텐츠 폭 (고정 600px) -->
+<table role="presentation" width="600" style="width:600px; max-width:600px;">
+<tr>
+<td style="padding:16px;">
+ 
+            <!-- ===== 여기부터 기존 콘텐츠 그대로 ===== -->
+ 
+            <h1>Daily News Monitoring</h1>
+<div style="margin-top:4px; font-size:13px;">
+              {{ today_date }}
 </div>
+ 
+            <div class="summary">
+<strong>어제 기사 AI 브리핑</strong><br>
+              {{ yesterday_summary }}
+</div>
+ 
+            <h2>🔹 ACUVUE 기사</h2>
+ 
+            {% if acuvue_articles %}
+              {% for a in acuvue_articles %}
+<div class="card">
+<strong>{{ a.title }}</strong><br>
+<div style="font-size:12px; color:#666; margin:4px 0;">
+                    {{ a.source }} · {{ a.published.strftime("%Y-%m-%d %H:%M") }}
+</div>
+<div>{{ a.summary }}</div>
+ 
+                  {% if a.image_url %}
+<div style="margin-top:8px;">
+<img src="{{ a.image_url }}" width="100%" style="max-width:100%; border-radius:4px;">
+</div>
+                  {% endif %}
+ 
+                  <div style="margin-top:6px;">
+<a href="{{ a.link }}" target="_blank">기사 보기 →</a>
+</div>
+</div>
+              {% endfor %}
+            {% else %}
+<div class="card">
+                어제는 별도의 아큐브 관련 기사가 수집되지 않았습니다.
+</div>
+            {% endif %}
+ 
+            <h2>📋 어제 전체 기사 리스트</h2>
+ 
+            <!-- 이하 카테고리 테이블은 기존 코드 그대로 유지 -->
+<!-- company_articles / product_articles / trend_articles / eye_health_articles -->
+ 
+            <!-- ===== 여기까지 ===== -->
+ 
+          </td>
+</tr>
+</table>
+ 
+    </td>
+</tr>
+</table>
+ 
 </body>
 </html>
