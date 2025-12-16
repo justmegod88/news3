@@ -13,6 +13,9 @@ class CategorizedArticles:
 
 
 # 업체별 활동(타사) → 콘택트렌즈 회사만
+
+ACUVUE = [ "아큐브", "ACUVUE", "존슨앤드존슨 비전", "한국존슨앤드존슨 비전" ]
+
 COMPANY_BRANDS = [
     "쿠퍼비전", "쿠퍼 비전", "쿠퍼", "쿠퍼 렌즈",
     "알콘", "알콘렌즈", "알콘 렌즈", "데일리스토탈원", "에어옵틱스",
@@ -58,7 +61,7 @@ def categorize_articles(articles: List[Article]) -> CategorizedArticles:
         text = a.title + " " + a.summary
 
         # 1) ACUVUE 기사 (별도 섹션)
-        if "아큐브" in text:
+        if contains_any(text, ACUVUE):
             acuvue.append(a)
 
         # 2) 업체별 활동 (타사 렌즈 회사만)
