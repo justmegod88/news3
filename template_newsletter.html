@@ -3,33 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-   <style>
+  <style>
     body 
-    {
-      /* 이메일용: 감각적이면서도 호환성 높은 폰트 스택(웹폰트 로딩 없이) */
-      font-family: "Pretendard", -apple-system, BlinkMacSystemFont,
-            "SF Pro Text", "Apple SD Gothic Neo", "Noto Sans KR",
-            "Malgun Gothic", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    {font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+            "Noto Sans KR", "Malgun Gothic", Arial, sans-serif;
       background:#ffffff;
       padding:0;
       margin:0;
     }
     .container {
-      max-width:580px;
+      max-width:640px;
       margin:0 auto;
-      padding:12px;
+      padding:16px;
       box-sizing:border-box;
     }
     h1 {
       margin:0;
       color:#003f7f;
-      font-size:20px;
+      font-size:22px;
     }
     h2 {
       margin-top:28px;
       margin-bottom:8px;
       color:#003f7f;
-      font-size:16px;
+      font-size:18px;
     }
     .summary {
       background:#eaf3ff;
@@ -55,11 +52,11 @@
     }
     .card-title {
       font-weight:bold;
-      font-size:16px;
+      font-size:15px;
       margin-bottom:4px;
     }
     .card-meta {
-      font-size:13px;
+      font-size:12px;
       color:#777;
       margin:2px 0 6px 0;
     }
@@ -74,7 +71,7 @@
       width:100%;
       border-collapse:collapse;
       margin-top:4px;       /* 타이틀과 테이블은 가깝게 */
-      margin-bottom:4px;   /* 테이블과 다음 타이틀은 넓게 */
+      margin-bottom:24px;   /* 테이블과 다음 타이틀은 넓게 */
       table-layout:fixed;
     }
     table.news-table th {
@@ -131,7 +128,7 @@
       margin-left:12px;
       display:block;
     }
-    @media only screen and (max-width: 600px) {
+    @media only screen and (max-width: 480px) {
       .container {
         padding:12px;
       }
@@ -146,37 +143,24 @@
   </style>
 </head>
 <body>
-  <center style="width:100%; background:#ffffff;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;">
-      <tr>
-        <td align="center" valign="top">
-          <!--[if (gte mso 9)|(IE)]>
-          <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0">
-            <tr><td>
-          <![endif]-->
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px; margin:0 auto;">
-            <tr>
-              <td>
-                <div class="container">
+  <div class="container">
 
 <!-- 헤더: 제목 + 날짜 + 우측 Acuvue 로고 (테이블 기반) -->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
 <tr>
 <!-- 왼쪽: 타이틀 + 날짜 -->
 <td align="left" valign="middle" style="padding:0;">
-<div style="font-family: "Pretendard", -apple-system, BlinkMacSystemFont,
-            "SF Pro Text", "Apple SD Gothic Neo", "Noto Sans KR",
-            "Malgun Gothic", "Segoe UI", "Helvetica Neue", Arial, sans-serif;>
-<div style="font-size:40=px; font-weight:700; color:#245caa; margin:0 0 2px 0;">
+<div style="font-family: Arial, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;">
+<div style="font-size:24px; font-weight:700; color:#245caa; margin:0 0 2px 0;">
          Daily News Monitoring
 </div>
-<div style="font-size:15px; color:#555;">
+<div style="font-size:11px; color:#555;">
          {{ today_date }}
 </div>
 </div>
 </td>
 <!-- 오른쪽: 로고 -->
-<td align="right" valign="middle" style="padding:0; width:100px;">
+<td align="right" valign="middle" style="padding:0; width:80px;">
 <img
        src="https://play-lh.googleusercontent.com/_LBPbhmNDp7aBDGLcfoWU9hbgEsHeqbJQGyM0fX32Tap2b6Mc4KMWpNsLmUCkBSrIr0V"
        alt="ACUVUE Logo"
@@ -189,10 +173,8 @@
 </table>
 
     <!-- 어제 기사 요약 (임원 브리핑) -->
-    <div style="margin:5px 0 0 0; padding-top:15px; border-top:1px solid #eeeeee;">
-      <div style="font-size:13px; font-weight:700; color:#333; margin-bottom:12px;">
     <div class="summary">
-      <strong>[어제 기사 AI 브리핑]</strong><br>
+      <strong>어제 기사 AI 브리핑</strong><br>
       {{ yesterday_summary }}
     </div>
 
@@ -224,7 +206,7 @@
     {% endif %}
 
     <!-- 전체 기사 리스트 -->
-    <h2>📋 어제 기사 리스트</h2>
+    <h2>📋 어제 전체 기사 리스트</h2>
 
     <!-- 1) 업체별 활동 (타사) -->
     <div style="margin:12px 0 0 0; padding-top:10px; border-top:1px solid #eeeeee;">
@@ -239,17 +221,17 @@
           <col class="col-link">
         </colgroup>
         <tr>
-          <th>제목</td>
-          <th>언론사</td>
-          <th>요약</td>
-          <th>링크</td>
+          <th>제목</th>
+          <th>언론사</th>
+          <th>요약</th>
+          <th>링크</th>
         </tr>
         {% for a in company_articles %}
         <tr>
           <td>{{ a.title }}</td>
           <td>{{ a.source }}</td>
           <td>{{ a.summary }}</td>
-          <td><a href="{{ a.link }}" target="_blank">보기</a>
+          <td><a href="{{ a.link }}" target="_blank">보기</a></td>
         </tr>
         {% endfor %}
       </table>
@@ -346,18 +328,6 @@
       이 뉴스레터는 자동 생성되었습니다.
     </div>
 
-                </div>
-              </td>
-            </tr>
-          </table>
-          <!--[if (gte mso 9)|(IE)]>
-            </td></tr>
-          </table>
-          <![endif]-->
-        </td>
-      </tr>
-    </table>
-  </center>
+  </div>
 </body>
 </html>
- 
