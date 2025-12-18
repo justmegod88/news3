@@ -5,9 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
-      font-family: "Apple SD Gothic Neo",
-        -apple-system, BlinkMacSystemFont,"Apple SD Gothic Neo",
+      font-family:
+        -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",'Roboto',
+        "Noto Sans KR",
         "Malgun Gothic",
+        Arial,
         sans-serif;
       background:#ffffff;
       padding:0;
@@ -31,25 +33,14 @@
       color:#003f7f;
       font-size:16px;
     }
-   .summary {
- background:#eaf3ff;
- padding:14px 20px 14px 20px;
- border-left:4px solid #003f7f;
- margin:16px 0 20px 0;
-}
-/* 🔹 AI 브리프 제목 */
-.summary-title {
- font-size:14.5px;      /* ⬅ 살짝 키움 */
- font-weight:700;
- margin-bottom:8px;     /* ⬅ 제목-본문 간격 */
- line-height:1.4;
-}
-/* 🔹 AI 브리프 본문 */
-.summary-body {
- font-size:13px;
- line-height:1.4;      /* ⬅ 줄 간격 여유 */
-}
-    
+    .summary {
+      background:#eaf3ff;
+      padding:12px;
+      border-left:4px solid #003f7f;
+      margin:16px 0 20px 0;
+      font-size:13px;
+      line-height:1.5;
+    }
     .card {
       border:1px solid #e0e0e0;
       padding:12px;
@@ -85,35 +76,31 @@
       width:100%;
       border-collapse:collapse;
       margin-top:4px;       /* 타이틀과 테이블은 가깝게 */
-      margin-bottom:40px;   /* 테이블과 다음 타이틀은 넓게 */
+      margin-bottom:24px;   /* 테이블과 다음 타이틀은 넓게 */
       table-layout:fixed;   /* ✅ 컬럼 폭 고정 */
     }
     table.news-table th {
       background:#f3f7ff;
-      padding:5PX 8px;
-      line-height:1.3;
-      vertical-aligh:middle;
+      padding:8px;
       text-align:left;
       font-size:12px;
       border-bottom:1px solid #dde3f5;
     }
     table.news-table td {
-      padding:5px 8px;
-      line-height:1.3;
+      padding:8px;
       border-top:1px solid #eee;
       font-size:12px;
-      vertical-aligh:middle;
-      text-align:left;
+      vertical-align:center;
     }
     table.news-table tr:nth-child(even) td {
       background:#fafafa;
     }
 
     /* ✅ 컬럼 비율: 제목3 / 언론사2 / 요약4 / 링크1 */
-    .col-title  { width:20%; }
-    .col-press  { width:20%; }
+    .col-title  { width:30%; }
+    .col-press  { width:26%; }
     .col-sum    { width:40%; }
-    .col-link   { width:20%; }
+    .col-link   { width:14%; }
 
     a { color:#0066cc; text-decoration:none; }
     a:hover { text-decoration:underline; }
@@ -212,7 +199,7 @@
     <h2>📋 어제 기사 리스트</h2>
 
     <!-- 1) 업체별 활동 (타사) -->
-    <div style="margin:6px 0 0 0; padding-top:4px; border-top:1px solid #eeeeee;">
+    <div style="margin:12px 0 0 0; padding-top:10px; border-top:1px solid #eeeeee;">
       <div style="font-size:13px; font-weight:700; color:#333; margin-bottom:2px;">
         1) 업체별 활동 (타사)
       </div>
@@ -239,14 +226,6 @@
           <td><a href="{{ a.link }}" target="_blank">보기</a></td>
         </tr>
         {% endfor %}
-        {% if company_articles|length == 0 %}
-<tr>
-<td>&nbsp;</td>
-<td>&nbsp;</td>
-<td>&nbsp;</td>
-<td>&nbsp;</td>
-</tr>
-{% endif %}
       </table>
     </div>
 
@@ -277,14 +256,6 @@
           <td><a href="{{ a.link }}" target="_blank">보기</a></td>
         </tr>
         {% endfor %}
-                {% if product_articles|length == 0 %}
-<tr>
-<td>&nbsp;</td>
-<td>&nbsp;</td>
-<td>&nbsp;</td>
-<td>&nbsp;</td>
-</tr>
-{% endif %}
       </table>
     </div>
 
@@ -296,7 +267,7 @@
 
       <table class="news-table">
         <colgroup>
-            <col class="col-title" width="30%">
+          <col class="col-title" width="30%">
           <col class="col-press" width="26%">
           <col class="col-sum"   width="40%">
           <col class="col-link"  width="14%">
@@ -315,14 +286,6 @@
           <td><a href="{{ a.link }}" target="_blank">보기</a></td>
         </tr>
         {% endfor %}
-                {% if trend_articles|length == 0 %}
-<tr>
-<td>&nbsp;</td>
-<td>&nbsp;</td>
-<td>&nbsp;</td>
-<td>&nbsp;</td>
-</tr>
-{% endif %}
       </table>
     </div>
 
@@ -334,7 +297,7 @@
 
       <table class="news-table">
         <colgroup>
-    <col class="col-title" width="30%">
+          <col class="col-title" width="30%">
           <col class="col-press" width="26%">
           <col class="col-sum"   width="40%">
           <col class="col-link"  width="14%">
@@ -353,14 +316,6 @@
           <td><a href="{{ a.link }}" target="_blank">보기</a></td>
         </tr>
         {% endfor %}
-                {% if health_articles|length == 0 %}
-<tr>
-<td>&nbsp;</td>
-<td>&nbsp;</td>
-<td>&nbsp;</td>
-<td>&nbsp;</td>
-</tr>
-{% endif %}
       </table>
     </div>
 
