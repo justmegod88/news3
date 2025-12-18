@@ -47,7 +47,7 @@
 /* 🔹 AI 브리프 본문 */
 .summary-body {
  font-size:13px;
- line-height:1.65;      /* ⬅ 줄 간격 여유 */
+ line-height:1.4;      /* ⬅ 줄 간격 여유 */
 }
     
     .card {
@@ -220,10 +220,10 @@
       <!-- ✅ colgroup을 width 속성으로 강제(이메일에서 가장 안정적) -->
       <table class="news-table">
         <colgroup>
-          <col class="col-title" width="20%">
-          <col class="col-press" width="20%">
+          <col class="col-title" width="30%">
+          <col class="col-press" width="26%">
           <col class="col-sum"   width="40%">
-          <col class="col-link"  width="20%">
+          <col class="col-link"  width="14%">
         </colgroup>
         <tr>
           <th>제목</th>
@@ -258,10 +258,10 @@
 
       <table class="news-table">
         <colgroup>
-          <col class="col-title" width="20%">
-          <col class="col-press" width="20%">
+          <col class="col-title" width="30%">
+          <col class="col-press" width="26%">
           <col class="col-sum"   width="40%">
-          <col class="col-link"  width="20%">
+          <col class="col-link"  width="14%">
         </colgroup>
         <tr>
           <th>제목</th>
@@ -277,7 +277,7 @@
           <td><a href="{{ a.link }}" target="_blank">보기</a></td>
         </tr>
         {% endfor %}
-                {% if company_articles|length == 0 %}
+                {% if product_articles|length == 0 %}
 <tr>
 <td>&nbsp;</td>
 <td>&nbsp;</td>
@@ -296,10 +296,10 @@
 
       <table class="news-table">
         <colgroup>
-          <col class="col-title" width="20%">
-          <col class="col-press" width="20%">
+            <col class="col-title" width="30%">
+          <col class="col-press" width="26%">
           <col class="col-sum"   width="40%">
-          <col class="col-link"  width="20%">
+          <col class="col-link"  width="14%">
         </colgroup>
         <tr>
           <th>제목</th>
@@ -315,7 +315,7 @@
           <td><a href="{{ a.link }}" target="_blank">보기</a></td>
         </tr>
         {% endfor %}
-                {% if company_articles|length == 0 %}
+                {% if trend_articles|length == 0 %}
 <tr>
 <td>&nbsp;</td>
 <td>&nbsp;</td>
@@ -334,10 +334,10 @@
 
       <table class="news-table">
         <colgroup>
-        <col class="col-title" width="20%">
-          <col class="col-press" width="20%">
+    <col class="col-title" width="30%">
+          <col class="col-press" width="26%">
           <col class="col-sum"   width="40%">
-          <col class="col-link"  width="20%">
+          <col class="col-link"  width="14%">
         </colgroup>
         <tr>
           <th>제목</th>
@@ -353,7 +353,7 @@
           <td><a href="{{ a.link }}" target="_blank">보기</a></td>
         </tr>
         {% endfor %}
-                {% if company_articles|length == 0 %}
+                {% if health_articles|length == 0 %}
 <tr>
 <td>&nbsp;</td>
 <td>&nbsp;</td>
