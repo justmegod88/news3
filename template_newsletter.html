@@ -1,131 +1,24 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body {
-      font-family:
-        -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",'Roboto',
-        "Noto Sans KR",
-        "Malgun Gothic",
-        Arial,
-        sans-serif;
-      background:#ffffff;
-      padding:0;
-      margin:0;
-    }
+<!-- ===================================================== -->
+<!--  PC Outlook (Windows) 전용 : 이미지로 표시            -->
+<!-- ===================================================== -->
+<!--[if mso]>
+<div style="margin:0 auto; width:650px;">
+<!-- 🔽🔽 여기에 PC용 이미지 RAW URL 넣기 🔽🔽 -->
+<img src="https://raw.githubusercontent.com/justmegod88/news3/ce9c88c76f43ef35142dced2da97bcc522fe9d92/_C__Users_SKim228_Downloads_%25EB%2589%25B4%25EC%258A%25A4%25EB%25A0%2588%25ED%2584%25B0_PC%2520%25EC%259E%2591%25EA%25B2%258C%2520%25EB%25AA%25A8%25EB%25B0%2594%25EC%259D%25BC%2520%25ED%2581%25AC%25EA%25B2%258C%2520%25ED%2585%259C%25ED%2594%258C%25EB%25A6%25BF.html.png"
+        width="650"
+        alt="Daily News Monitoring"
+        style="display:block; width:650px; height:auto; border:0;" />
+</div>
+<![endif]-->
+<!-- ===================================================== -->
+<!--  Mobile / Webmail 전용 : 기존 HTML 템플릿 표시        -->
+<!-- ===================================================== -->
+<!--[if !mso]><!-- -->
+<div style="max-width:650px; margin:0 auto;">
+<!-- 🔽🔽 여기 아래에 기존 뉴스레터 HTML 전체를 그대로 붙여넣기 🔽🔽 -->
+</div>
+<!--<![endif]-->
 
-    .container {
-      max-width:640px;
-      margin:0 auto;
-      padding:16px;
-      box-sizing:border-box;
-    }
-    h1 {
-      margin:0;
-      color:#003f7f;
-      font-size:22px;
-    }
-    h2 {
-      margin-top:28px;
-      margin-bottom:8px;
-      color:#003f7f;
-      font-size:16px;
-    }
-    .summary {
-      background:#eaf3ff;
-      padding:12px;
-      border-left:4px solid #003f7f;
-      margin:16px 0 20px 0;
-      font-size:13px;
-      line-height:1.5;
-    }
-    .card {
-      border:1px solid #e0e0e0;
-      padding:12px;
-      border-radius:6px;
-      margin-bottom:12px;
-      font-size:13px;
-      background:#ffffff;
-    }
-    .card-flex {
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      gap:12px;
-    }
-    .card-title {
-      font-weight:bold;
-      font-size:15px;
-      margin-bottom:4px;
-    }
-    .card-meta {
-      font-size:12px;
-      color:#777;
-      margin:2px 0 6px 0;
-    }
-    .card-summary {
-      font-size:13px;
-      margin:4px 0 8px 0;
-      line-height:1.5;
-    }
-
-    /* ✅ 공통 테이블 스타일 (하단 "전체 기사 리스트" 포함: 사이즈/레이아웃 고정) */
-    table.news-table {
-      width:100%;
-      border-collapse:collapse;
-      margin-top:4px;       /* 타이틀과 테이블은 가깝게 */
-      margin-bottom:24px;   /* 테이블과 다음 타이틀은 넓게 */
-      table-layout:fixed;   /* ✅ 컬럼 폭 고정 */
-    }
-    table.news-table th {
-      background:#f3f7ff;
-      padding:8px;
-      text-align:left;
-      font-size:12px;
-      border-bottom:1px solid #dde3f5;
-    }
-    table.news-table td {
-      padding:8px;
-      border-top:1px solid #eee;
-      font-size:12px;
-      vertical-align:center;
-    }
-    table.news-table tr:nth-child(even) td {
-      background:#fafafa;
-    }
-
-    /* ✅ 컬럼 비율: 제목3 / 언론사2 / 요약4 / 링크1 */
-    .col-title  { width:30%; }
-    .col-press  { width:26%; }
-    .col-sum    { width:40%; }
-    .col-link   { width:14%; }
-
-    a { color:#0066cc; text-decoration:none; }
-    a:hover { text-decoration:underline; }
-
-    .footer {
-      text-align:center;
-      font-size:11px;
-      color:#777;
-      margin-top:24px;
-    }
-    img.thumb {
-      width:120px;
-      height:auto;
-      object-fit:cover;
-      border-radius:4px;
-      display:block;
-    }
-    img.logo {
-      width:70px;
-      height:70px;
-      object-fit:contain;
-      border-radius:8px;
-      margin-left:12px;
-      display:block;
-    }
     @media only screen and (max-width: 640px) {
       .container { padding:12px; }
       .card-flex { flex-direction:column; }
