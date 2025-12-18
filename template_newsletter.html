@@ -1,330 +1,254 @@
-<!DOCTYPE html>
+
+<!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8">
+  <title>Daily News Monitoring</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- 모바일에서 크게 보이도록 폰트/여백/버튼을 확장하는 스타일 -->
   <style>
+    /* 웹 클라이언트 및 Gmail 앱 호환을 위해 기본값은 인라인에 중복 지정 */
     body {
-      font-family:
-        -apple-system,
-        BlinkMacSystemFont,
-        "Apple SD Gothic Neo",
-        "Noto Sans KR",
-        "Malgun Gothic",
-        Arial,
-        sans-serif;
-      background:#ffffff;
-      padding:0;
-      margin:0;
+      margin:0 !important; padding:0 !important; background:#f5f7fa;
+      -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;
+    }
+    table { border-collapse:collapse !important; }
+    img { border:0; outline:none; text-decoration:none; display:block; }
+    a { text-decoration:none; color:#0062e3; }
+    /* Outlook 전용 (웹폰트 무시하는 경우) */
+    /*[if mso]>
+      <style>
+        body, table, td, p, a { font-family: Arial, sans-serif !important; }
+      </style>
+    <![endif]*/
+
+    /* 모바일 확장: 600px 이하에서 폰트/여백/썸네일 크게 */
+    @media only screen and (max-width:600px) {
+      .container { width:100% !important; }
+      .p-24 { padding:24px !important; }
+      .p-16 { padding:16px !important; }
+      .p-12 { padding:12px !important; }
+      .h1 { font-size:22px !important; line-height:30px !important; }
+      .h2 { font-size:18px !important; line-height:26px !important; }
+      .meta { font-size:14px !important; line-height:20px !important; }
+      .body { font-size:16px !important; line-height:24px !important; }
+      .btn { font-size:16px !important; padding:14px 20px !important; }
+      .thumb { width:96px !important; height:auto !important; }
+      .stack { display:block !important; width:100% !important; }
+      .spacer-16 { height:16px !important; line-height:16px !important; }
     }
 
-    .container {
-      max-width:640px;
-      margin:0 auto;
-      padding:16px;
-      box-sizing:border-box;
+    /* PC 기본: 컴팩트한 타이포와 여백 */
+    .wrapper { width:100%; background:#f5f7fa; }
+    .container { width:600px; margin:0 auto; }
+    .card { background:#ffffff; border-radius:8px; }
+    .p-24 { padding:24px; }
+    .p-16 { padding:16px; }
+    .p-12 { padding:12px; }
+    .h1 { font-family:Arial, sans-serif; font-size:18px; line-height:26px; font-weight:bold; color:#111827; }
+    .h2 { font-family:Arial, sans-serif; font-size:16px; line-height:24px; font-weight:bold; color:#111827; }
+    .meta { font-family:Arial, sans-serif; font-size:12px; line-height:18px; color:#6b7280; }
+    .body { font-family:Arial, sans-serif; font-size:14px; line-height:22px; color:#374151; }
+    .divider { border-top:1px solid #e5e7eb; }
+    .btn {
+      display:inline-block; background:#0062e3; color:#ffffff !important;
+      font-family:Arial, sans-serif; font-size:14px; line-height:20px;
+      padding:10px 16px; border-radius:6px;
     }
-    h1 {
-      margin:0;
-      color:#003f7f;
-      font-size:22px;
-    }
-    h2 {
-      margin-top:28px;
-      margin-bottom:8px;
-      color:#003f7f;
-      font-size:16px;
-    }
-    .summary {
-      background:#eaf3ff;
-      padding:12px;
-      border-left:4px solid #003f7f;
-      margin:16px 0 20px 0;
-      font-size:13px;
-      line-height:1.5;
-    }
-    .card {
-      border:1px solid #e0e0e0;
-      padding:12px;
-      border-radius:6px;
-      margin-bottom:12px;
-      font-size:13px;
-      background:#ffffff;
-    }
-    .card-flex {
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      gap:12px;
-    }
-    .card-title {
-      font-weight:bold;
-      font-size:15px;
-      margin-bottom:4px;
-    }
-    .card-meta {
-      font-size:12px;
-      color:#777;
-      margin:2px 0 6px 0;
-    }
-    .card-summary {
-      font-size:13px;
-      margin:4px 0 8px 0;
-      line-height:1.5;
-    }
-
-    /* ✅ 공통 테이블 스타일 (하단 "전체 기사 리스트" 포함: 사이즈/레이아웃 고정) */
-    table.news-table {
-      width:100%;
-      border-collapse:collapse;
-      margin-top:4px;       /* 타이틀과 테이블은 가깝게 */
-      margin-bottom:24px;   /* 테이블과 다음 타이틀은 넓게 */
-      table-layout:fixed;   /* ✅ 컬럼 폭 고정 */
-    }
-    table.news-table th {
-      background:#f3f7ff;
-      padding:8px;
-      text-align:left;
-      font-size:12px;
-      border-bottom:1px solid #dde3f5;
-    }
-    table.news-table td {
-      padding:8px;
-      border-top:1px solid #eee;
-      font-size:12px;
-      vertical-align:center;
-    }
-    table.news-table tr:nth-child(even) td {
-      background:#fafafa;
-    }
-
-    /* ✅ 컬럼 비율: 제목3 / 언론사2 / 요약4 / 링크1 */
-    .col-title  { width:30%; }
-    .col-press  { width:26%; }
-    .col-sum    { width:40%; }
-    .col-link   { width:14%; }
-
-    a { color:#0066cc; text-decoration:none; }
-    a:hover { text-decoration:underline; }
-
-    .footer {
-      text-align:center;
-      font-size:11px;
-      color:#777;
-      margin-top:24px;
-    }
-    img.thumb {
-      width:120px;
-      height:auto;
-      object-fit:cover;
-      border-radius:4px;
-      display:block;
-    }
-    img.logo {
-      width:70px;
-      height:70px;
-      object-fit:contain;
-      border-radius:8px;
-      margin-left:12px;
-      display:block;
-    }
-    @media only screen and (max-width: 640px) {
-      .container { padding:12px; }
-      .card-flex { flex-direction:column; }
-      img.thumb { width:100%; max-width:200px; }
-    }
+    .badge { display:inline-block; font-size:12px; color:#0062e3; font-weight:bold; }
+    .thumb { width:72px; height:auto; border-radius:6px; }
+    .spacer-16 { height:12px; line-height:12px; } /* 모바일에서 16px로 확대 */
+    .muted { color:#6b7280; }
+    .table-header { background:#f9fafb; }
+    .table-cell { border-bottom:1px solid #e5e7eb; padding:12px; font-family:Arial, sans-serif; font-size:14px; line-height:20px; color:#374151; }
+    .table-head { padding:12px; font-family:Arial, sans-serif; font-size:12px; line-height:18px; color:#6b7280; font-weight:bold; }
   </style>
 </head>
 
-<body>
-  <div class="container">
-
-    <!-- 헤더: 제목 + 날짜 + 우측 로고 -->
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
+<body class="wrapper">
+  <center>
+    <!-- 컨테이너 -->
+    <table role="presentation" width="100%" bgcolor="#f5f7fa">
       <tr>
-        <td align="left" valign="middle" style="padding:0;">
-          <div style="font-family: Arial, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;">
-            <div style="font-size:25px; font-weight:700; color:#245caa; margin:0 0 2px 0;">
-              Daily News Monitoring
-            </div>
-            <div style="font-size:12px; color:#555;">
-              {{ today_date }}
-            </div>
-          </div>
-        </td>
-        <td align="right" valign="middle" style="padding:0; width:80px;">
-          <img
-            src="https://play-lh.googleusercontent.com/_LBPbhmNDp7aBDGLcfoWU9hbgEsHeqbJQGyM0fX32Tap2b6Mc4KMWpNsLmUCkBSrIr0V"
-            alt="ACUVUE Logo"
-            width="64"
-            height="64"
-            style="display:block; border-radius:20px;"
-          >
+        <td align="center" style="padding:20px 12px;">
+          <table role="presentation" class="container" width="600">
+            <!-- 헤더 -->
+            <tr>
+              <td class="card p-24" style="background:#ffffff;">
+                <table role="presentation" width="100%">
+                  <tr>
+                    <!-- 좌측: 제목/날짜 -->
+                    <td class="stack" align="left" valign="middle" style="padding-right:8px;">
+                      <div class="h1">Daily News Monitoring</div>
+                      <div class="meta">{{ today_date }}</div>
+                    </td>
+                    <!-- 우측: 로고 -->
+                    <td class="stack" align="right" valign="middle">
+                      <!-- 로고 이미지: CID 또는 https 링크 사용 -->
+                      <img src="https://via.placeholder.com/120x32?text=ACUVUE" width="120" height="32           </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- 어제 기사 AI 브리핑 -->
+            <tr><td height="12" class="spacer-16"></td></tr>
+            <tr>
+              <td class="card p-24">
+                <div class="badge">어제 기사 AI 브리핑</div>
+                <div class="spacer-16"></div>
+                <div class="body">
+                  {{ yesterday_summary }}
+                </div>
+              </td>
+            </tr>
+
+            <!-- ACUVUE 기사 섹션 -->
+            <tr><td height="12" class="spacer-16"></td></tr>
+            <tr>
+              <td class="card p-24">
+                <div class="h2">🔷 ACUVUE 기사</div>
+                <div class="spacer-16"></div>
+
+                {% if acuvue_articles %}
+                  {% for a in acuvue_articles %}
+                  <!-- 카드형 기사 항목: PC는 컴팩트, 모바일은 썸네일/텍스트 크게 -->
+                  <table role="presentation" width="100%">
+                    <tr>
+                      <!-- 썸네일 (있을 때만) -->
+                      {% if a.image_url %}
+                      <td class="stack" width="88" valign="top" style="padding-right:12px;">
+                        {{ a.image_url }}
+                      </td>
+                      {% endif %}
+                      <!-- 텍스트 -->
+                      <td class="stack" valign="top">
+                        <div class="h2" style="margin-bottom:4px;">{{ a.title }}</div>
+                        <div class="meta">{{ a.source }} • {{ a.published.strftime("%Y-%m-%d %H:%M") }}</div>
+                        <div class="body" style="margin-top:8px; margin-bottom:12px;">{{ a.summary }}</div>
+                        <!-- 버튼: 대부분의 클라이언트에서 동작 -->
+                        <!--[if mso]>
+                          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" arcsize="12%" stroke="f" fillcolor="#0062e3" style="height:36px;v-text-anchor:middle;width:140px;">
+                            <w:anchorlock/>
+                            <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:14px;">기사 보기 →</center>
+                          </v:roundrect>
+                        <![endif]-->
+                        <!--[if !mso]><!-- -->
+                          <a href="{{ a.link }}" class="btn" target       <!--<![endif]-->
+                      </td>
+                    </tr>
+                  </table>
+                  <div class="spacer-16"></div>
+                  <div class="divider"></div>
+                  <div class="spacer-16"></div>
+                  {% endfor %}
+                {% else %}
+                  <div class="body muted">어제는 별도의 아큐브 관련 기사가 수집되지 않았습니다.</div>
+                {% endif %}
+              </td>
+            </tr>
+
+            <!-- 1) 업체별 활동 (타사) -->
+            <tr><td height="12" class="spacer-16"></td></tr>
+            <tr>
+              <td class="card p-24">
+                <div class="h2">📋 어제 전체 기사 리스트</div>
+                <div class="spacer-16"></div>
+
+                <div class="h2" style="font-weight:bold; margin-bottom:8px;">1) 업체별 활동 (타사)</div>
+                <table role="presentation" width="100%">
+                  <tr class="table-header">
+                    <td class="table-head" width="45%">제목</td>
+                    <td class="table-head" width="20%">언론사</td>
+                    <td class="table-head" width="25%">요약</td>
+                    <td class="table-head" width="10%">링크</td>
+                  </tr>
+                  {% for a in company_articles %}
+                  <tr>
+                    <td class="table-cell">{{ a.title }}</td>
+                    <td class="table-cell">{{ a.source }}</td>
+                    <td class="table-cell">{{ a.summary }}</td>
+                    <td class="table-cell"><a href="{{ a.link }}" target="_blank" rel</tr>
+                  {% endfor %}
+                </table>
+
+                <!-- 2) 제품 카테고리별 -->
+                <div class="spacer-16"></div>
+                <div class="h2" style="font-weight:bold; margin-bottom:8px;">2) 제품 카테고리별 (난시렌즈·멀티포컬 렌즈 등)</div>
+                <table role="presentation" width="100%">
+                  <tr class="table-header">
+                    <td class="table-head" width="45%">제목</td>
+                    <td class="table-head" width="20%">언론사</td>
+                    <td class="table-head" width="25%">요약</td>
+                    <td class="table-head" width="10%">링크</td>
+                  </tr>
+                  {% for a in product_articles %}
+                  <tr>
+                    <td class="table-cell">{{ a.title }}</td>
+                    <td class="table-cell">{{ a.source }}</td>
+                    <td class="table-cell">{{ a.summary }}</td>
+                    <td class="table-cell"><a href="{{}보기</a></td>
+                  </tr>
+                  {% endfor %}
+                </table>
+
+                <!-- 3) 업계 동향 -->
+                <div class="spacer-16"></div>
+                <div class="h2" style="font-weight:bold; margin-bottom:8px;">3) 업계 동향 (협회/컨퍼런스/체인/안경 등)</div>
+                <table role="presentation" width="100%">
+                  <tr class="table-header">
+                    <td class="table-head" width="45%">제목</td>
+                    <td class="table-head" width="20%">언론사</td>
+                    <td class="table-head" width="25%">요약</td>
+                    <td class="table-head" width="10%">링크</td>
+                  </tr>
+                  {% for a in trend_articles %}
+                  <tr>
+                    <td class="table-cell">{{ a.title }}</td>
+                    <td class="table-cell">{{ a.source }}</td>
+                    <td class="table-cell">{{ a.summary }}</td>
+                    <td class="table-cell">{{ a.link }}보기</a></td>
+                  </tr>
+                  {% endfor %}
+                </table>
+
+                <!-- 4) 눈 건강 · 캠페인 -->
+                <div class="spacer-16"></div>
+                <div class="h2" style="font-weight:bold; margin-bottom:8px;">4) 눈 건강 · 캠페인</div>
+                <table role="presentation" width="100%">
+                  <tr class="table-header">
+                    <td class="table-head" width="45%">제목</td>
+                    <td class="table-head" width="20%">언론사</td>
+                    <td class="table-head" width="25%">요약</td>
+                    <td class="table-head" width="10%">링크</td>
+                  </tr>
+                  {% for a in eye_health_articles %}
+                  <tr>
+                    <td class="table-cell">{{ a.title }}</td>
+                    <td class="table-cell">{{ a.source }}</td>
+                    <td class="table-cell">{{ a.summary }}</td>
+                    <td class="table-cell">{{ a.link }}보기</a></td>
+                  </tr>
+                  {% endfor %}
+                </table>
+
+                <div class="spacer-16"></div>
+                <div class="meta">이 뉴스레터는 자동 생성되었습니다.</div>
+              </td>
+            </tr>
+
+            <!-- 푸터 -->
+            <tr><td height="12" class="spacer-16"></td></tr>
+            <tr>
+              <td align="center" class="meta muted">
+                © {{ today_date }} ACUVUE | 이 메일은 모니터링 목적의 자동 발송입니다.
+              </td>
+            </tr>
+
+          </table>
         </td>
       </tr>
     </table>
-
-    <!-- 어제 기사 요약 -->
-    <div class="summary">
-      <strong>[어제 기사 AI 브리핑]</strong><br>
-      {{ yesterday_summary }}
-    </div>
-
-    <!-- ACUVUE 기사 -->
-    <h2>🔷 ACUVUE 기사</h2>
-
-    {% if acuvue_articles %}
-      {% for a in acuvue_articles %}
-      <div class="card">
-        <div class="card-flex">
-          <div style="flex:1;">
-            <div class="card-title">{{ a.title }}</div>
-            <div class="card-meta">{{ a.source }} • {{ a.published.strftime("%Y-%m-%d %H:%M") }}</div>
-            <div class="card-summary">{{ a.summary }}</div>
-            <a href="{{ a.link }}" target="_blank">기사 보기 →</a>
-          </div>
-          {% if a.image_url %}
-          <div>
-            <img class="thumb" src="{{ a.image_url }}" alt="thumbnail">
-          </div>
-          {% endif %}
-        </div>
-      </div>
-      {% endfor %}
-    {% else %}
-      <div class="card" style="margin-bottom:24px;">
-        어제는 별도의 아큐브 관련 기사가 수집되지 않았습니다.
-      </div>
-    {% endif %}
-
-    <!-- 전체 기사 리스트 -->
-    <h2>📋 어제 기사 리스트</h2>
-
-    <!-- 1) 업체별 활동 (타사) -->
-    <div style="margin:12px 0 0 0; padding-top:10px; border-top:1px solid #eeeeee;">
-      <div style="font-size:13px; font-weight:700; color:#333; margin-bottom:2px;">
-        1) 업체별 활동 (타사)
-      </div>
-
-      <!-- ✅ colgroup을 width 속성으로 강제(이메일에서 가장 안정적) -->
-      <table class="news-table">
-        <colgroup>
-          <col class="col-title" width="30%">
-          <col class="col-press" width="26%">
-          <col class="col-sum"   width="40%">
-          <col class="col-link"  width="14%">
-        </colgroup>
-        <tr>
-          <th>제목</th>
-          <th>언론사</th>
-          <th>요약</th>
-          <th>링크</th>
-        </tr>
-        {% for a in company_articles %}
-        <tr>
-          <td>{{ a.title }}</td>
-          <td>{{ a.source }}</td>
-          <td>{{ a.summary }}</td>
-          <td><a href="{{ a.link }}" target="_blank">보기</a></td>
-        </tr>
-        {% endfor %}
-      </table>
-    </div>
-
-    <!-- 2) 제품 카테고리별 -->
-    <div style="margin:0; padding-top:10px; border-top:1px solid #eeeeee;">
-      <div style="font-size:13px; font-weight:700; color:#333; margin-bottom:2px;">
-        2) 제품 카테고리별 (난시렌즈·멀티포컬 렌즈 등)
-      </div>
-
-      <table class="news-table">
-        <colgroup>
-          <col class="col-title" width="30%">
-          <col class="col-press" width="26%">
-          <col class="col-sum"   width="40%">
-          <col class="col-link"  width="14%">
-        </colgroup>
-        <tr>
-          <th>제목</th>
-          <th>언론사</th>
-          <th>요약</th>
-          <th>링크</th>
-        </tr>
-        {% for a in product_articles %}
-        <tr>
-          <td>{{ a.title }}</td>
-          <td>{{ a.source }}</td>
-          <td>{{ a.summary }}</td>
-          <td><a href="{{ a.link }}" target="_blank">보기</a></td>
-        </tr>
-        {% endfor %}
-      </table>
-    </div>
-
-    <!-- 3) 업계 동향 -->
-    <div style="margin:0; padding-top:10px; border-top:1px solid #eeeeee;">
-      <div style="font-size:13px; font-weight:700; color:#333; margin-bottom:2px;">
-        3) 업계 동향 (협회/컨퍼런스/체인/안경 등)
-      </div>
-
-      <table class="news-table">
-        <colgroup>
-          <col class="col-title" width="30%">
-          <col class="col-press" width="26%">
-          <col class="col-sum"   width="40%">
-          <col class="col-link"  width="14%">
-        </colgroup>
-        <tr>
-          <th>제목</th>
-          <th>언론사</th>
-          <th>요약</th>
-          <th>링크</th>
-        </tr>
-        {% for a in trend_articles %}
-        <tr>
-          <td>{{ a.title }}</td>
-          <td>{{ a.source }}</td>
-          <td>{{ a.summary }}</td>
-          <td><a href="{{ a.link }}" target="_blank">보기</a></td>
-        </tr>
-        {% endfor %}
-      </table>
-    </div>
-
-    <!-- 4) 눈 건강 · 캠페인 -->
-    <div style="margin:0; padding-top:10px; border-top:1px solid #eeeeee;">
-      <div style="font-size:13px; font-weight:700; color:#333; margin-bottom:2px;">
-        4) 눈 건강 · 캠페인
-      </div>
-
-      <table class="news-table">
-        <colgroup>
-          <col class="col-title" width="30%">
-          <col class="col-press" width="26%">
-          <col class="col-sum"   width="40%">
-          <col class="col-link"  width="14%">
-        </colgroup>
-        <tr>
-          <th>제목</th>
-          <th>언론사</th>
-          <th>요약</th>
-          <th>링크</th>
-        </tr>
-        {% for a in eye_health_articles %}
-        <tr>
-          <td>{{ a.title }}</td>
-          <td>{{ a.source }}</td>
-          <td>{{ a.summary }}</td>
-          <td><a href="{{ a.link }}" target="_blank">보기</a></td>
-        </tr>
-        {% endfor %}
-      </table>
-    </div>
-
-    <div class="footer">
-      이 뉴스레터는 자동 생성되었습니다.
-    </div>
-
-  </div>
+  </center>
 </body>
 </html>
