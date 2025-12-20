@@ -1,7 +1,7 @@
 import datetime as dt
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional, Tuple
-from urllib.parse import quote_plus, urlparse, urlunparse
+from typing import List, Dict, Any, Optional
+from urllib.parse import quote_plus
 import re
 import html
 
@@ -32,10 +32,11 @@ class Article:
     source: str
     summary: str
     image_url: Optional[str] = None
+    is_naver: bool = False  # ✅ 네이버 기사 여부 표시
 
 
 # =========================
-# Exclusion rules (기본)
+# Exclusion rules (ONLY 2)
 # =========================
 FINANCE_KEYWORDS = [
     "주가", "주식", "증시", "투자", "재무", "실적",
@@ -57,32 +58,18 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "")).strip()
 
 
-def _get_extra_excludes(cfg: Optional[Dict[str, Any]]) -> List[str]:
-    if not cfg:
-        return []
-    extra = cfg.get("exclude_keywords", []) or []
-    out = []
-    for x in extra:
-        s = str(x).strip()
-        if s:
-            out.append(s.lower())
-    return out
-
-
-def should_exclude_article(title: str, summary: str = "", cfg: Optional[Dict[str, Any]] = None) -> bool:
+def should_exclude_article(title: str, summary: str = "") -> bool:
+    """
+    ✅ 수집 최대화 정책:
+    - 관련 없는 투자/재무/실적 기사 제외
+    - '다비치'는 가수/연예 문맥만 제외 (다비치안경은 살림)
+    """
     full = f"{_normalize(title)} {_normalize(summary)}".lower()
 
-    # 1) 주식/투자/재무/실적 제외
     if any(k in full for k in FINANCE_KEYWORDS):
         return True
 
-    # 2) 다비치(가수/연예)만 제외 (다비치안경은 살림)
     if "다비치" in full and any(h in full for h in DAVICHI_SINGER_HINTS):
-        return True
-
-    # 3) config.yaml exclude_keywords 추가 적용
-    extra = _get_extra_excludes(cfg)
-    if extra and any(k in full for k in extra):
         return True
 
     return False
@@ -102,6 +89,13 @@ def _get_tz(cfg: Dict[str, Any]):
         from dateutil import tz
         return tz.gettz(tz_name)
     return ZoneInfo(tz_name)
+
+
+def _safe_now(tz):
+    try:
+        return dt.datetime.now(tz)
+    except Exception:
+        return dt.datetime.now()
 
 
 # =========================
@@ -132,67 +126,26 @@ def clean_summary(raw: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _safe_now(tz):
-    try:
-        return dt.datetime.now(tz)
-    except Exception:
-        return dt.datetime.now()
-
-
-def normalize_url(url: str) -> str:
-    """utm 같은 쿼리/fragment 제거"""
-    if not url:
-        return url
-    try:
-        p = urlparse(url)
-        p2 = p._replace(query="", fragment="")
-        return urlunparse(p2)
-    except Exception:
-        return url
-
-
-def iter_keywords_with_priority(cfg: Dict[str, Any]) -> List[Tuple[str, int]]:
-    """
-    keywords_with_priority가 있으면 그걸 우선 사용,
-    없으면 기존 keywords 사용.
-    """
-    out: List[Tuple[str, int]] = []
-    kwp = cfg.get("keywords_with_priority")
-    if isinstance(kwp, list) and kwp:
-        for it in kwp:
-            if not isinstance(it, dict):
-                continue
-            kw = str(it.get("keyword", "")).strip()
-            if not kw:
-                continue
-            try:
-                pr = int(it.get("priority", 0))
-            except Exception:
-                pr = 0
-            out.append((kw, pr))
-        if out:
-            return out
-
-    kws = cfg.get("keywords", []) or []
-    return [(str(k).strip(), 0) for k in kws if str(k).strip()]
-
-
 # =========================
 # Google News RSS
 # =========================
-def fetch_from_google_news(query: str, source_name: str, tz, cfg: Optional[Dict[str, Any]] = None) -> List[Article]:
+def fetch_from_google_news(query: str, source_name: str, tz) -> List[Article]:
+    """
+    ✅ when:1d 제거 (RSS 결과 0 되는 케이스 방지)
+    - 날짜 필터는 newsletter 단계에서 '어제 하루'로 처리
+    """
     feed = feedparser.parse(build_google_news_url(query))
     articles: List[Article] = []
 
     for e in getattr(feed, "entries", []):
         title = clean_title(getattr(e, "title", ""))
-        link = normalize_url(getattr(e, "link", "") or "")
+        link = getattr(e, "link", "") or ""
         summary = clean_summary(getattr(e, "summary", "") or "")
 
         raw_date = getattr(e, "published", None) or getattr(e, "updated", None)
         published = parse_rss_datetime(raw_date, tz) if raw_date else _safe_now(tz)
 
-        if should_exclude_article(title, summary, cfg=cfg):
+        if should_exclude_article(title, summary):
             continue
 
         articles.append(
@@ -203,6 +156,7 @@ def fetch_from_google_news(query: str, source_name: str, tz, cfg: Optional[Dict[
                 source=source_name,
                 summary=summary,
                 image_url=None,
+                is_naver=False,
             )
         )
 
@@ -219,7 +173,7 @@ _NAVER_HEADERS = {
 
 
 def parse_naver_published_time(url: str, tz) -> Optional[dt.datetime]:
-    """네이버 기사 본문에서 발행시간 최대한 정확히 파싱"""
+    """네이버 기사 본문에서 발행시간 파싱(가능하면)"""
     try:
         r = requests.get(url, headers=_NAVER_HEADERS, timeout=10, allow_redirects=True)
         if r.status_code >= 400:
@@ -278,13 +232,13 @@ def fetch_from_naver_news(
     keyword: str,
     source_name: str,
     tz,
-    cfg: Optional[Dict[str, Any]] = None,
     pages: int = 8,
 ) -> List[Article]:
     """
-    네이버 뉴스 검색:
-      - pages를 config에서 받아 수집량 증가
-      - 발행시간 파싱 실패해도 버리지 않음(now로 대체)
+    ✅ 수집 최대화:
+    - pages 크게
+    - 발행시간 파싱 실패해도 기사 버리지 않음(now로 대체)
+    - BUT: 필터에서 네이버는 '날짜만' 보므로, 시간 정확도는 덜 중요
     """
     base_url = "https://search.naver.com/search.naver"
     articles: List[Article] = []
@@ -312,7 +266,7 @@ def fetch_from_naver_news(
                 continue
 
             title = (a.get("title") or "").strip()
-            link = normalize_url((a.get("href") or "").strip())
+            link = (a.get("href") or "").strip()
             if not link or link in seen_links:
                 continue
             seen_links.add(link)
@@ -320,14 +274,13 @@ def fetch_from_naver_news(
             summary_tag = it.select_one("div.news_dsc")
             summary = summary_tag.get_text(" ", strip=True) if summary_tag else ""
 
-            if should_exclude_article(title, summary, cfg=cfg):
+            if should_exclude_article(title, summary):
                 continue
 
             published = parse_naver_published_time(link, tz)
             if not published:
                 published = _parse_naver_relative_time(it, tz)
             if not published:
-                # ✅ 예전엔 여기서 continue로 버렸는데, 이제는 유지(수집량 확보)
                 published = _safe_now(tz)
 
             press = it.select_one("a.info.press")
@@ -341,6 +294,7 @@ def fetch_from_naver_news(
                     source=source,
                     summary=summary,
                     image_url=None,
+                    is_naver=True,  # ✅ 네이버 표시
                 )
             )
 
@@ -352,8 +306,8 @@ def fetch_from_naver_news(
 # =========================
 def fetch_all_articles(cfg: Dict[str, Any]) -> List[Article]:
     tz = _get_tz(cfg)
+    keywords = cfg.get("keywords", []) or []
     sources = cfg.get("news_sources", []) or []
-    kw_list = iter_keywords_with_priority(cfg)
 
     naver_pages = int(cfg.get("naver_pages", 8) or 8)
 
@@ -364,20 +318,20 @@ def fetch_all_articles(cfg: Dict[str, Any]) -> List[Article]:
         name = (src.get("name") or "").strip()
         host = (src.get("host") or "").strip()
 
-        for kw, _priority in kw_list:
+        for kw in keywords:
             kw = (kw or "").strip()
             if not kw:
                 continue
 
             if name == "NaverNews":
-                fetched = fetch_from_naver_news(kw, name, tz, cfg=cfg, pages=naver_pages)
+                fetched = fetch_from_naver_news(kw, name, tz, pages=naver_pages)
             else:
                 base_query = f"{kw} site:{host}" if host else kw
-                # ✅ when:1d 제거 (RSS에서 0건 되거나 불안정한 케이스 방지)
-                fetched = fetch_from_google_news(base_query, name or "GoogleNews", tz, cfg=cfg)
+                fetched = fetch_from_google_news(base_query, name or "GoogleNews", tz)
 
             for a in fetched:
-                key = normalize_url(a.link) or (a.title, a.source)
+                # 수집단계에서는 완전 동일 (title, link)만 최소 중복 제거
+                key = (a.title, a.link)
                 if key in seen:
                     continue
                 seen.add(key)
@@ -387,40 +341,42 @@ def fetch_all_articles(cfg: Dict[str, Any]) -> List[Article]:
 
 
 # =========================
-# Date filter (최근 24시간 이내)
+# Date filter (어제 00:00~23:59, KST 고정)
 # =========================
 def filter_yesterday_articles(articles: List[Article], cfg: Dict[str, Any]) -> List[Article]:
-    """기존 함수명 유지 / 동작은 최근 24시간"""
+    """
+    ✅ 최종 요구사항
+    - 오늘 뉴스레터: '어제 00:00~23:59(KST)' 기사만 포함
+    - 네이버 기사: 시간은 무시하고 '날짜(YYYY-MM-DD)'만으로 어제면 포함
+    - 그 외(RSS): datetime 범위로 어제 하루만 포함
+    """
     tz = _get_tz(cfg)
     now = _safe_now(tz)
-    start = now - dt.timedelta(hours=24)
+
+    today = now.date()
+    yesterday = today - dt.timedelta(days=1)
+
+    start_dt = dt.datetime.combine(yesterday, dt.time.min).replace(tzinfo=tz)
+    end_dt = dt.datetime.combine(yesterday, dt.time.max).replace(tzinfo=tz)
 
     out: List[Article] = []
+
     for a in articles:
         try:
-            ap = a.published.astimezone(tz)
+            pub = a.published.astimezone(tz)
         except Exception:
-            ap = a.published
-        if start <= ap <= now:
+            pub = a.published
+
+        # ✅ 네이버: 날짜만 비교
+        if getattr(a, "is_naver", False):
+            if pub.date() == yesterday:
+                out.append(a)
+            continue
+
+        # ✅ 나머지: datetime 비교
+        if start_dt <= pub <= end_dt:
             out.append(a)
-    return out
 
-
-# =========================
-# Keyword filter (호환 유지)
-# =========================
-def filter_by_keywords(articles: List[Article], cfg: Dict[str, Any]) -> List[Article]:
-    kwp = cfg.get("keywords_with_priority")
-    if isinstance(kwp, list) and kwp:
-        keywords = [str(x.get("keyword", "")).lower() for x in kwp if isinstance(x, dict) and x.get("keyword")]
-    else:
-        keywords = [str(k).lower() for k in (cfg.get("keywords", []) or []) if k]
-
-    out: List[Article] = []
-    for a in articles:
-        text = (a.title + " " + (a.summary or "")).lower()
-        if any(k in text for k in keywords):
-            out.append(a)
     return out
 
 
@@ -430,8 +386,8 @@ def filter_by_keywords(articles: List[Article], cfg: Dict[str, Any]) -> List[Art
 def filter_out_finance_articles(articles):
     """
     newsletter.py 호환용.
-    - 주식/투자/재무/실적 기사 제외
-    - 다비치(가수/연예) 기사 제외
+    - 투자/재무/실적 제외
+    - 가수 다비치 제외
     """
     filtered = []
     for a in articles:
