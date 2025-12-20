@@ -1,4 +1,5 @@
 import datetime as dt
+from urllib.parse import urlparse, urlunparse
 from zoneinfo import ZoneInfo
 
 from jinja2 import Environment, FileSystemLoader
@@ -6,19 +7,43 @@ from jinja2 import Environment, FileSystemLoader
 from scrapers import (
     load_config,
     fetch_all_articles,
-    filter_yesterday_articles,
-    filter_by_keywords,
+    filter_yesterday_articles,   # ✅ 어제 하루(고정) + 네이버 날짜만
+    filter_out_finance_articles, # ✅ 투자/재무/실적 + 가수다비치 제외
 )
 from categorizer import categorize_articles
 from summarizer import summarize_overall, refine_article_summaries
 from mailer import send_email_html
 
 
-def _log_counts(step: str, items):
+def _log(step: str, n: int):
+    print(f"🧾 {step}: {n}건")
+
+
+def _normalize_link(url: str) -> str:
+    if not url:
+        return url
     try:
-        print(f"🧾 {step}: {len(items)}")
+        p = urlparse(url)
+        return urlunparse(p._replace(query="", fragment=""))
     except Exception:
-        print(f"🧾 {step}: (count unknown)")
+        return url
+
+
+def dedup_articles_by_link(articles):
+    """
+    ✅ 뉴스레터에서만 중복 제거:
+    - 링크 기준으로만 중복 제거 (공격적 제거 X)
+    """
+    seen = set()
+    out = []
+    for a in articles:
+        link = _normalize_link(getattr(a, "link", "") or "")
+        key = link if link else (getattr(a, "title", ""), getattr(a, "source", ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(a)
+    return out
 
 
 def render_newsletter_html(cfg, categorized, yesterday_summary: str) -> str:
@@ -26,13 +51,10 @@ def render_newsletter_html(cfg, categorized, yesterday_summary: str) -> str:
     now = dt.datetime.now(tz=tz)
     today_str = now.strftime("%Y-%m-%d (%a)")
 
-    env = Environment(
-        loader=FileSystemLoader("."),
-        autoescape=True,
-    )
+    env = Environment(loader=FileSystemLoader("."), autoescape=True)
     template = env.get_template("template_newsletter.html")
 
-    html = template.render(
+    return template.render(
         today_date=today_str,
         yesterday_summary=yesterday_summary,
         acuvue_articles=categorized.acuvue,
@@ -41,140 +63,56 @@ def render_newsletter_html(cfg, categorized, yesterday_summary: str) -> str:
         trend_articles=categorized.trend,
         eye_health_articles=categorized.eye_health,
     )
-    return html
-
-
-def _contains_excluded(text: str, excludes) -> bool:
-    if not excludes:
-        return False
-    t = (text or "").lower()
-    for x in excludes:
-        s = str(x).strip().lower()
-        if s and s in t:
-            return True
-    return False
-
-
-def _apply_exclude_keywords(articles, excludes):
-    if not excludes:
-        return articles
-    out = []
-    for a in articles:
-        text = f"{a.title} {a.summary or ''}".lower()
-        if _contains_excluded(text, excludes):
-            continue
-        out.append(a)
-    return out
-
-
-def _select_best_by_priority(articles, cfg):
-    """
-    같은 링크가 여러 키워드로 잡힌 경우를 대비:
-    - keywords_with_priority 기반으로 대표 기사 선택
-    (이미 scrapers에서 링크 중복 제거를 하지만, 안전망으로 한번 더)
-    """
-    kwp = cfg.get("keywords_with_priority") or []
-    pr_map = {}
-    for it in kwp:
-        if isinstance(it, dict) and it.get("keyword"):
-            try:
-                pr_map[str(it["keyword"]).lower()] = int(it.get("priority", 0))
-            except Exception:
-                pr_map[str(it["keyword"]).lower()] = 0
-
-    def score(a):
-        text = f"{a.title} {a.summary or ''}".lower()
-        best = 0
-        for k, p in pr_map.items():
-            if k and k in text:
-                best = max(best, p)
-        return best
-
-    best_by_link = {}
-    for a in articles:
-        link = a.link
-        s = score(a)
-        if link not in best_by_link or s > best_by_link[link][0]:
-            best_by_link[link] = (s, a)
-
-    return [v[1] for v in best_by_link.values()]
-
-
-def _cap_sections(categorized, cfg):
-    caps = cfg.get("max_articles_per_section", {}) or {}
-    def cap(lst, n):
-        try:
-            n = int(n)
-        except Exception:
-            return lst
-        return lst[:n] if n > 0 else lst
-
-    categorized.acuvue = cap(categorized.acuvue, caps.get("acuvue"))
-    categorized.company = cap(categorized.company, caps.get("company"))
-    categorized.product = cap(categorized.product, caps.get("product"))
-    categorized.trend = cap(categorized.trend, caps.get("trend"))
-    categorized.eye_health = cap(categorized.eye_health, caps.get("eye_health"))
-    return categorized
 
 
 def main():
     cfg = load_config("config.yaml")
+    tz = ZoneInfo(cfg.get("timezone", "Asia/Seoul"))
+
+    # 기준 날짜: 어제(달력 기준)
+    today = dt.datetime.now(tz=tz).date()
+    yesterday = today - dt.timedelta(days=1)
 
     print("🚀 뉴스레터 생성 시작")
 
-    # 1) 전체 기사 수집
+    # 1) 전체 기사 수집(키워드 기반으로 최대한)
     all_articles = fetch_all_articles(cfg)
-    _log_counts("전체 수집(원본)", all_articles)
+    _log("전체 수집(원본)", len(all_articles))
 
-    # 2) 최근 24시간 이내 기사만
+    # 2) 어제 하루(00:00~23:59)만 포함
     y_articles = filter_yesterday_articles(all_articles, cfg)
-    _log_counts("최근 24시간", y_articles)
+    _log(f"어제({yesterday.isoformat()}) 기사 필터 후", len(y_articles))
 
-    # 3) 키워드 필터 적용
-    y_kw_articles = filter_by_keywords(y_articles, cfg)
-    _log_counts("키워드 필터 후", y_kw_articles)
+    # 3) 투자/재무/실적 + 가수 다비치 제외
+    y_articles = filter_out_finance_articles(y_articles)
+    _log("투자/재무 + 가수다비치 제외 후", len(y_articles))
 
-    # 4) 추가 제외키워드 적용(재무/투자/실적 등 운영자 제어)
-    excludes = cfg.get("exclude_keywords", []) or []
-    y_kw_articles = _apply_exclude_keywords(y_kw_articles, excludes)
-    _log_counts("exclude_keywords 적용 후", y_kw_articles)
+    # 4) 뉴스레터에서만 링크 기준 중복 제거
+    y_articles = dedup_articles_by_link(y_articles)
+    _log("중복 제거 후", len(y_articles))
 
-    # 5) 대표 기사 선택(키워드 priority 기반)
-    y_kw_articles = _select_best_by_priority(y_kw_articles, cfg)
-    _log_counts("priority 대표 선정 후", y_kw_articles)
+    # 5) 요약 다듬기
+    refine_article_summaries(y_articles)
 
-    # 6) 각 기사 요약을 GPT로 다듬기
-    refine_article_summaries(y_kw_articles)
-
-    # 7) 카테고리 분류
-    categorized = categorize_articles(y_kw_articles)
-    print("📦 카테고리별 수집 결과")
+    # 6) 카테고리 분류
+    categorized = categorize_articles(y_articles)
+    print("📦 카테고리별")
     print(f"  - ACUVUE: {len(categorized.acuvue)}")
     print(f"  - 업체별 활동(타사): {len(categorized.company)}")
     print(f"  - 제품 카테고리: {len(categorized.product)}")
     print(f"  - 업계 동향: {len(categorized.trend)}")
     print(f"  - 눈 건강/캠페인: {len(categorized.eye_health)}")
 
-    # 8) 섹션별 상한 적용
-    categorized = _cap_sections(categorized, cfg)
+    # 7) 전체 브리핑 생성
+    yesterday_summary = summarize_overall(y_articles)
 
-    # 9) 전체 브리핑 생성
-    yesterday_summary = summarize_overall(y_kw_articles)
-
-    # 10) HTML 렌더링
+    # 8) HTML 렌더링
     html_body = render_newsletter_html(cfg, categorized, yesterday_summary)
 
-    # 11) 메일 발송
+    # 9) 메일 발송
     email_conf = cfg["email"]
     subject_prefix = email_conf.get("subject_prefix", "[Daily News]")
-
-    tz = ZoneInfo(cfg.get("timezone", "Asia/Seoul"))
-    now = dt.datetime.now(tz=tz)
-    start_dt = now - dt.timedelta(hours=24)
-
-    start = start_dt.strftime("%m/%d %H:%M")
-    end = now.strftime("%m/%d %H:%M")
-    subject = f"{subject_prefix} 최근 24시간 기사 브리핑 – {start}~{end}"
+    subject = f"{subject_prefix} 어제({yesterday.isoformat()}) 기사 브리핑"
 
     send_email_html(
         subject=subject,
