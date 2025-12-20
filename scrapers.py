@@ -69,8 +69,10 @@ def should_exclude_article(title: str, summary: str = "") -> bool:
     if any(k in full for k in FINANCE_KEYWORDS):
         return True
 
-    if "다비치" in full and any(h in full for h in DAVICHI_SINGER_HINTS):
-        return True
+    # ✅ "다비치" 또는 "davichi"가 등장하면서
+#    연예/음악 문맥(힌트) 또는 멤버 이름이 있으면 제외
+if ("다비치" in full or "davichi" in full) and any(h in full for h in DAVICHI_SINGER_HINTS):
+    return True
 
     return False
 
