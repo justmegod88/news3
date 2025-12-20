@@ -1,73 +1,86 @@
 timezone: Asia/Seoul
 
-# 네이버 뉴스 검색 페이지 수 (1페이지=약 10개)
-# 5페이지=약 50개 / 8페이지=약 80개
+# 네이버 뉴스 검색 페이지 수 (1페이지 ≈ 10개)
 naver_pages: 8
 
+# 제외할 기사 키워드 (제목/요약/본문 공통)
+exclude_keywords:
+  - 실적
+  - 영업이익
+  - 매출
+  - 영업손실
+  - 분기
+  - 투자
+  - IPO
+  - 인수
+  - 합병
+  - 공모
+  - 주가
+  - 증권
+  - 재무
+  - 컨센서스
+  - 밸류에이션
 
-keywords:
- - 아큐브
- - 쿠퍼 렌즈
- - 알콘 렌즈
- - 다비치 안경
- - 다비치 체인
- - 오렌즈
- - 난시렌즈
- - 멀티포컬렌즈
- - 다초점 렌즈
- - 호야 렌즈
- - 자이스 렌즈
- - 콘택트렌즈
- - 으뜸50
- - 으뜸 플러스
- - 바슈롬
- - 인터로조
- - 소프트 콘택트렌즈
- - 컬러렌즈
- - 콘택트 렌즈
- - 한국존슨앤드존슨
- - 존슨앤드존슨 비전
- # 영문 병행
- - soft contact lens
- - multifocal lens
- - contact lens
- - ACUVUE
- - Alcon contact lens
- - CooperVision
+# 키워드 + 중요도
+keywords_with_priority:
+  - keyword: 아큐브
+    priority: 100
+  - keyword: 존슨앤드존슨 비전
+    priority: 90
+  - keyword: 한국존슨앤드존슨
+    priority: 80
+  - keyword: ACUVUE
+    priority: 70
+
+  - keyword: 알콘
+    priority: 50
+  - keyword: CooperVision
+    priority: 50
+  - keyword: 바슈롬
+    priority: 50
+
+  - keyword: 콘택트렌즈
+    priority: 30
+  - keyword: 난시렌즈
+    priority: 30
+  - keyword: 멀티포컬렌즈
+    priority: 30
+
+# 뉴스 소스
 news_sources:
- # 업계지 도메인 우선
- - name: 한국안경신문
-   host: opticnews.co.kr
- - name: 안경계
-   host: optic.or.kr
- - name: 데일리아이
-   host: dailyeye.co.kr
- - name: FN아이포커스
-   host: fneyefocus.com
- - name: 옵틱위클리
-   host: opticweekly.com
- - name: 헬스조선
-   host: health.chosun.com
- - name: 뉴시스
-   host: newsis.com
- - name: 보건뉴스
-   host: bosa.co.kr
- - name: 뉴스핌
-   host: newspim.com
+  - name: 한국안경신문
+    host: opticnews.co.kr
+  - name: 안경계
+    host: optic.or.kr
+  - name: 데일리아이
+    host: dailyeye.co.kr
+  - name: FN아이포커스
+    host: fneyefocus.com
+  - name: 옵틱위클리
+    host: opticweekly.com
+  - name: 헬스조선
+    host: health.chosun.com
+  - name: 뉴시스
+    host: newsis.com
+  - name: 보건뉴스
+    host: bosa.co.kr
+  - name: 뉴스핌
+    host: newspim.com
+  - name: 구글 뉴스
+    host: ""
+  - name: NaverNews
+    host: ""
 
+# 섹션별 최대 기사 수
+max_articles_per_section:
+  acuvue: 8
+  company: 10
+  product: 10
+  trend: 10
+  eye_health: 8
 
-# 구글 뉴스 전체 검색 (업계지 외 일반 매체용)
- - name: 구글 뉴스(전체)
-   host: ""
- # 네이버 뉴스
- - name: NaverNews
-   host: ""
-
-
-
-   
 email:
- from: justmegod88@gmail.com
- to:
-   - skim228@its.jnj.com
- subject_prefix: "[ACUVUE Daily News]"
+  from: justmegod88@gmail.com
+  to:
+    - skim228@its.jnj.com
+  subject_prefix: "[ACUVUE Daily News]"
