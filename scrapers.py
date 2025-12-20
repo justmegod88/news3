@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Optional
 from urllib.parse import quote_plus
 import re
 import html
+from functools import lru_cache
 
 import feedparser
 import yaml
@@ -46,11 +47,21 @@ FINANCE_KEYWORDS = [
     "목표주가", "시가총액", "ir", "주주",
 ]
 
+# ✅ 가수 다비치 강력 제외(체인 다비치는 살림)
 DAVICHI_SINGER_HINTS = [
-    "가수", "음원", "신곡", "컴백", "앨범",
-    "콘서트", "공연", "뮤직비디오",
-    "차트", "유튜브", "방송", "예능",
-    "ost", "드라마 ost",
+    # 연예/음악 신호
+    "가수", "그룹", "여성 듀오", "듀오",
+    "음원", "신곡", "컴백", "앨범", "미니앨범", "정규",
+    "뮤직비디오", "mv", "티저", "트랙리스트",
+    "콘서트", "공연", "팬미팅", "투어", "무대",
+    "차트", "멜론", "지니", "벅스", "빌보드",
+    "유튜브", "방송", "예능", "라디오", "ost", "드라마 ost",
+    # 멤버 이름(최강 신호)
+    "이해리", "강민경",
+    # 연예 섹션 힌트
+    "연예", "연예뉴스", "entertain",
+    # 연예 매체 힌트(자주 등장하는 표기)
+    "osen", "텐아시아", "스타뉴스", "마이데일리", "스포츠",
 ]
 
 
@@ -66,13 +77,17 @@ def should_exclude_article(title: str, summary: str = "") -> bool:
     """
     full = f"{_normalize(title)} {_normalize(summary)}".lower()
 
+    # 1) 주식/투자/재무/실적 제외
     if any(k in full for k in FINANCE_KEYWORDS):
         return True
 
-    # ✅ "다비치" 또는 "davichi"가 등장하면서
-#    연예/음악 문맥(힌트) 또는 멤버 이름이 있으면 제외
-if ("다비치" in full or "davichi" in full) and any(h in full for h in DAVICHI_SINGER_HINTS):
-    return True
+    # 2) 가수 다비치 제외 (다비치안경은 살림)
+    if ("다비치" in full or "davichi" in full) and any(h in full for h in DAVICHI_SINGER_HINTS):
+        return True
+
+    # 3) 멤버 이름만 나와도 연예일 가능성이 매우 높아서 제외(안전망)
+    if "이해리" in full or "강민경" in full:
+        return True
 
     return False
 
@@ -117,6 +132,7 @@ def build_google_news_url(query: str) -> str:
 
 def clean_title(raw: str) -> str:
     t = (raw or "").strip()
+    # "제목 - 언론사" 형태면 제목만 남김
     return t.split(" - ")[0].strip() if " - " in t else t
 
 
@@ -128,20 +144,63 @@ def clean_summary(raw: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+@lru_cache(maxsize=2000)
+def resolve_final_url(url: str) -> str:
+    """
+    ✅ Google News의 news.google.com/rss/articles/... 링크를
+    실제 원문 URL로 리다이렉트 따라가서 변환.
+    중복 제거 정확도가 크게 올라감.
+    """
+    if not url:
+        return url
+    try:
+        r = requests.get(
+            url,
+            timeout=10,
+            allow_redirects=True,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        return r.url or url
+    except Exception:
+        return url
+
+
 # =========================
 # Google News RSS
 # =========================
 def fetch_from_google_news(query: str, source_name: str, tz) -> List[Article]:
     """
-    ✅ when:1d 제거 (RSS 결과 0 되는 케이스 방지)
-    - 날짜 필터는 newsletter 단계에서 '어제 하루'로 처리
+    ✅ 개선점
+    1) source를 '구글뉴스(전체)'가 아니라 '실제 언론사명'으로 저장
+    2) link를 news.google.com 리다이렉트가 아니라 '실제 원문 URL'로 저장
     """
     feed = feedparser.parse(build_google_news_url(query))
     articles: List[Article] = []
 
     for e in getattr(feed, "entries", []):
-        title = clean_title(getattr(e, "title", ""))
+        raw_title = getattr(e, "title", "") or ""
+
+        # 1) 언론사명 추출 (우선순위: entry.source.title > 제목의 "- 언론사")
+        publisher = None
+        try:
+            if getattr(e, "source", None) and getattr(e.source, "title", None):
+                publisher = str(e.source.title).strip()
+        except Exception:
+            publisher = None
+
+        if not publisher and " - " in raw_title:
+            publisher = raw_title.split(" - ")[-1].strip()
+
+        if not publisher:
+            publisher = source_name  # fallback
+
+        # 제목은 언론사 꼬리표 제거
+        title = clean_title(raw_title)
+
+        # 2) 링크는 최종 원문 URL로 resolve
         link = getattr(e, "link", "") or ""
+        link = resolve_final_url(link)
+
         summary = clean_summary(getattr(e, "summary", "") or "")
 
         raw_date = getattr(e, "published", None) or getattr(e, "updated", None)
@@ -155,7 +214,7 @@ def fetch_from_google_news(query: str, source_name: str, tz) -> List[Article]:
                 title=title,
                 link=link,
                 published=published,
-                source=source_name,
+                source=publisher,  # ✅ 실제 언론사명
                 summary=summary,
                 image_url=None,
                 is_naver=False,
@@ -240,7 +299,7 @@ def fetch_from_naver_news(
     ✅ 수집 최대화:
     - pages 크게
     - 발행시간 파싱 실패해도 기사 버리지 않음(now로 대체)
-    - BUT: 필터에서 네이버는 '날짜만' 보므로, 시간 정확도는 덜 중요
+    - 필터에서 네이버는 '날짜만' 보므로, 시간 정확도는 덜 중요
     """
     base_url = "https://search.naver.com/search.naver"
     articles: List[Article] = []
@@ -293,10 +352,10 @@ def fetch_from_naver_news(
                     title=title,
                     link=link,
                     published=published,
-                    source=source,
+                    source=source,      # ✅ 네이버는 이미 언론사명
                     summary=summary,
                     image_url=None,
-                    is_naver=True,  # ✅ 네이버 표시
+                    is_naver=True,
                 )
             )
 
@@ -332,8 +391,9 @@ def fetch_all_articles(cfg: Dict[str, Any]) -> List[Article]:
                 fetched = fetch_from_google_news(base_query, name or "GoogleNews", tz)
 
             for a in fetched:
-                # 수집단계에서는 완전 동일 (title, link)만 최소 중복 제거
-                key = (a.title, a.link)
+                # 수집단계에서는 완전 동일(link) 중심으로 최소 중복 제거
+                # (구글뉴스는 resolve_final_url로 원문 링크로 맞춰져 중복 제거가 잘 됨)
+                key = a.link or (a.title, a.source)
                 if key in seen:
                     continue
                 seen.add(key)
