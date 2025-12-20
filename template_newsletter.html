@@ -1,63 +1,180 @@
-<!-- ===================================================== -->
-<!--  PC Outlook (Windows) 전용 : 이미지로 표시            -->
-<!-- ===================================================== -->
-<!--[if mso]>
-<div style="margin:0 auto; width:650px;">
-<!-- 🔽🔽 여기에 PC용 이미지 RAW URL 넣기 🔽🔽 -->
-<img src="https://raw.githubusercontent.com/justmegod88/news3/ce9c88c76f43ef35142dced2da97bcc522fe9d92/_C__Users_SKim228_Downloads_%25EB%2589%25B4%25EC%258A%25A4%25EB%25A0%2588%25ED%2584%25B0_PC%2520%25EC%259E%2591%25EA%25B2%258C%2520%25EB%25AA%25A8%25EB%25B0%2594%25EC%259D%25BC%2520%25ED%2581%25AC%25EA%25B2%258C%2520%25ED%2585%259C%25ED%2594%258C%25EB%25A6%25BF.html.png"
-        width="650"
-        alt="Daily News Monitoring"
-        style="display:block; width:650px; height:auto; border:0;" />
-</div>
-<![endif]-->
-<!-- ===================================================== -->
-<!--  Mobile / Webmail 전용 : 기존 HTML 템플릿 표시        -->
-<!-- ===================================================== -->
-<!--[if !mso]><!-- -->
-<div style="max-width:650px; margin:0 auto;">
-<!-- 🔽🔽 여기 아래에 기존 뉴스레터 HTML 전체를 그대로 붙여넣기 🔽🔽 -->
-</div>
-<!--<![endif]-->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body 
+    {font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+            "Noto Sans KR", "Malgun Gothic", Arial, sans-serif;
+      background:#ffffff;
+      padding:0;
+      margin:0;
+    }
+    .container {
+      max-width:640px;
+      margin:0 auto;
+      padding:16px;
+      box-sizing:border-box;
+    }
+    h1 {
+      margin:0;
+      color:#003f7f;
+      font-size:22px;
+    }
+    h2 {
+      margin-top:28px;
+      margin-bottom:8px;
+      color:#003f7f;
+      font-size:18px;
+    }
+    .summary {
+      background:#eaf3ff;
+      padding:12px;
+      border-left:4px solid #003f7f;
+      margin:16px 0 20px 0;
+      font-size:13px;
+      line-height:1.5;
+    }
+    .card {
+      border:1px solid #e0e0e0;
+      padding:12px;
+      border-radius:6px;
+      margin-bottom:12px;
+      font-size:13px;
+      background:#ffffff;
+    }
+    .card-flex {
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+    }
+    .card-title {
+      font-weight:bold;
+      font-size:15px;
+      margin-bottom:4px;
+    }
+    .card-meta {
+      font-size:12px;
+      color:#777;
+      margin:2px 0 6px 0;
+    }
+    .card-summary {
+      font-size:13px;
+      margin:4px 0 8px 0;
+      line-height:1.5;
+    }
 
-    @media only screen and (max-width: 640px) {
-      .container { padding:12px; }
-      .card-flex { flex-direction:column; }
-      img.thumb { width:100%; max-width:200px; }
+    /* 공통 테이블 스타일 */
+    table.news-table {
+      width:100%;
+      border-collapse:collapse;
+      margin-top:4px;       /* 타이틀과 테이블은 가깝게 */
+      margin-bottom:24px;   /* 테이블과 다음 타이틀은 넓게 */
+      table-layout:fixed;
+    }
+    table.news-table th {
+      background:#f3f7ff;
+      padding:8px;
+      text-align:left;
+      font-size:12px;
+      border-bottom:1px solid #dde3f5;
+    }
+    table.news-table td {
+      padding:8px;
+      border-top:1px solid #eee;
+      font-size:12px;
+      vertical-align:top;
+      word-wrap:break-word;
+      word-break:break-word;
+    }
+    /* 줄무늬 효과(연하게) */
+    table.news-table tr:nth-child(even) td {
+      background:#fafafa;
+    }
+
+    /* 컬럼 비율: 제목3 / 언론사2 / 요약4 / 링크1 */
+    .col-title  { width:30%; }
+    .col-press  { width:20%; }
+    .col-sum    { width:40%; }
+    .col-link   { width:10%; }
+
+    a {
+      color:#0066cc;
+      text-decoration:none;
+    }
+    a:hover {
+      text-decoration:underline;
+    }
+    .footer {
+      text-align:center;
+      font-size:11px;
+      color:#777;
+      margin-top:24px;
+    }
+    img.thumb {
+      width:120px;
+      height:auto;
+      object-fit:cover;
+      border-radius:4px;
+      display:block;
+    }
+    img.logo {
+      width:70px;
+      height:70px;
+      object-fit:contain;
+      border-radius:8px;
+      margin-left:12px;
+      display:block;
+    }
+    @media only screen and (max-width: 480px) {
+      .container {
+        padding:12px;
+      }
+      .card-flex {
+        flex-direction:column;
+      }
+      img.thumb {
+        width:100%;
+        max-width:200px;
+      }
     }
   </style>
 </head>
-
 <body>
   <div class="container">
 
-    <!-- 헤더: 제목 + 날짜 + 우측 로고 -->
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
-      <tr>
-        <td align="left" valign="middle" style="padding:0;">
-          <div style="font-family: Arial, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;">
-            <div style="font-size:25px; font-weight:700; color:#245caa; margin:0 0 2px 0;">
-              Daily News Monitoring
-            </div>
-            <div style="font-size:12px; color:#555;">
-              {{ today_date }}
-            </div>
-          </div>
-        </td>
-        <td align="right" valign="middle" style="padding:0; width:80px;">
-          <img
-            src="https://play-lh.googleusercontent.com/_LBPbhmNDp7aBDGLcfoWU9hbgEsHeqbJQGyM0fX32Tap2b6Mc4KMWpNsLmUCkBSrIr0V"
-            alt="ACUVUE Logo"
-            width="64"
-            height="64"
-            style="display:block; border-radius:20px;"
-          >
-        </td>
-      </tr>
-    </table>
+<!-- 헤더: 제목 + 날짜 + 우측 Acuvue 로고 (테이블 기반) -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
+<tr>
+<!-- 왼쪽: 타이틀 + 날짜 -->
+<td align="left" valign="middle" style="padding:0;">
+<div style="font-family: Arial, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;">
+<div style="font-size:24px; font-weight:700; color:#245caa; margin:0 0 2px 0;">
+         Daily News Monitoring
+</div>
+<div style="font-size:11px; color:#555;">
+         {{ today_date }}
+</div>
+</div>
+</td>
+<!-- 오른쪽: 로고 -->
+<td align="right" valign="middle" style="padding:0; width:80px;">
+<img
+       src="https://play-lh.googleusercontent.com/_LBPbhmNDp7aBDGLcfoWU9hbgEsHeqbJQGyM0fX32Tap2b6Mc4KMWpNsLmUCkBSrIr0V"
+       alt="ACUVUE Logo"
+       width="64"
+       height="64"
+       style="display:block; border-radius:20px;"
+>
+</td>
+</tr>
+</table>
 
-    <!-- 어제 기사 요약 -->
+    <!-- 어제 기사 요약 (임원 브리핑) -->
     <div class="summary">
-      <strong>[어제 기사 AI 브리핑]</strong><br>
+      <strong>어제 기사 AI 브리핑</strong><br>
       {{ yesterday_summary }}
     </div>
 
@@ -89,21 +206,19 @@
     {% endif %}
 
     <!-- 전체 기사 리스트 -->
-    <h2>📋 어제 기사 리스트</h2>
+    <h2>📋 어제 전체 기사 리스트</h2>
 
     <!-- 1) 업체별 활동 (타사) -->
     <div style="margin:12px 0 0 0; padding-top:10px; border-top:1px solid #eeeeee;">
       <div style="font-size:13px; font-weight:700; color:#333; margin-bottom:2px;">
         1) 업체별 활동 (타사)
       </div>
-
-      <!-- ✅ colgroup을 width 속성으로 강제(이메일에서 가장 안정적) -->
       <table class="news-table">
         <colgroup>
-          <col class="col-title" width="30%">
-          <col class="col-press" width="26%">
-          <col class="col-sum"   width="40%">
-          <col class="col-link"  width="14%">
+          <col class="col-title">
+          <col class="col-press">
+          <col class="col-sum">
+          <col class="col-link">
         </colgroup>
         <tr>
           <th>제목</th>
@@ -123,17 +238,16 @@
     </div>
 
     <!-- 2) 제품 카테고리별 -->
-    <div style="margin:0; padding-top:10px; border-top:1px solid #eeeeee;">
+    <div style="margin:0 0 0 0; padding-top:10px; border-top:1px solid #eeeeee;">
       <div style="font-size:13px; font-weight:700; color:#333; margin-bottom:2px;">
         2) 제품 카테고리별 (난시렌즈·멀티포컬 렌즈 등)
       </div>
-
       <table class="news-table">
         <colgroup>
-          <col class="col-title" width="30%">
-          <col class="col-press" width="26%">
-          <col class="col-sum"   width="40%">
-          <col class="col-link"  width="14%">
+          <col class="col-title">
+          <col class="col-press">
+          <col class="col-sum">
+          <col class="col-link">
         </colgroup>
         <tr>
           <th>제목</th>
@@ -153,17 +267,16 @@
     </div>
 
     <!-- 3) 업계 동향 -->
-    <div style="margin:0; padding-top:10px; border-top:1px solid #eeeeee;">
+    <div style="margin:0 0 0 0; padding-top:10px; border-top:1px solid #eeeeee;">
       <div style="font-size:13px; font-weight:700; color:#333; margin-bottom:2px;">
         3) 업계 동향 (협회/컨퍼런스/체인/안경 등)
       </div>
-
       <table class="news-table">
         <colgroup>
-          <col class="col-title" width="30%">
-          <col class="col-press" width="26%">
-          <col class="col-sum"   width="40%">
-          <col class="col-link"  width="14%">
+          <col class="col-title">
+          <col class="col-press">
+          <col class="col-sum">
+          <col class="col-link">
         </colgroup>
         <tr>
           <th>제목</th>
@@ -183,17 +296,16 @@
     </div>
 
     <!-- 4) 눈 건강 · 캠페인 -->
-    <div style="margin:0; padding-top:10px; border-top:1px solid #eeeeee;">
+    <div style="margin:0 0 0 0; padding-top:10px; border-top:1px solid #eeeeee;">
       <div style="font-size:13px; font-weight:700; color:#333; margin-bottom:2px;">
         4) 눈 건강 · 캠페인
       </div>
-
       <table class="news-table">
         <colgroup>
-          <col class="col-title" width="30%">
-          <col class="col-press" width="26%">
-          <col class="col-sum"   width="40%">
-          <col class="col-link"  width="14%">
+          <col class="col-title">
+          <col class="col-press">
+          <col class="col-sum">
+          <col class="col-link">
         </colgroup>
         <tr>
           <th>제목</th>
