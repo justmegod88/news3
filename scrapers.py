@@ -35,7 +35,7 @@ class Article:
 
 
 # =========================
-# Exclusion rules (기본값)
+# Exclusion rules (기본)
 # =========================
 FINANCE_KEYWORDS = [
     "주가", "주식", "증시", "투자", "재무", "실적",
@@ -57,11 +57,16 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "")).strip()
 
 
-def _extra_excludes(cfg: Optional[Dict[str, Any]]) -> List[str]:
+def _get_extra_excludes(cfg: Optional[Dict[str, Any]]) -> List[str]:
     if not cfg:
         return []
-    ex = cfg.get("exclude_keywords", []) or []
-    return [str(x).strip() for x in ex if str(x).strip()]
+    extra = cfg.get("exclude_keywords", []) or []
+    out = []
+    for x in extra:
+        s = str(x).strip()
+        if s:
+            out.append(s.lower())
+    return out
 
 
 def should_exclude_article(title: str, summary: str = "", cfg: Optional[Dict[str, Any]] = None) -> bool:
@@ -75,9 +80,9 @@ def should_exclude_article(title: str, summary: str = "", cfg: Optional[Dict[str
     if "다비치" in full and any(h in full for h in DAVICHI_SINGER_HINTS):
         return True
 
-    # 3) config.yaml의 exclude_keywords 추가 제외
-    extra = _extra_excludes(cfg)
-    if extra and any(k.lower() in full for k in extra):
+    # 3) config.yaml exclude_keywords 추가 적용
+    extra = _get_extra_excludes(cfg)
+    if extra and any(k in full for k in extra):
         return True
 
     return False
@@ -135,10 +140,7 @@ def _safe_now(tz):
 
 
 def normalize_url(url: str) -> str:
-    """
-    URL 정규화:
-    - 쿼리/프래그먼트 제거 (utm 등 제거)
-    """
+    """utm 같은 쿼리/fragment 제거"""
     if not url:
         return url
     try:
@@ -151,28 +153,26 @@ def normalize_url(url: str) -> str:
 
 def iter_keywords_with_priority(cfg: Dict[str, Any]) -> List[Tuple[str, int]]:
     """
-    config에 keywords_with_priority가 있으면 우선 사용.
-    없으면 기존 keywords를 priority=0으로 사용.
+    keywords_with_priority가 있으면 그걸 우선 사용,
+    없으면 기존 keywords 사용.
     """
+    out: List[Tuple[str, int]] = []
     kwp = cfg.get("keywords_with_priority")
     if isinstance(kwp, list) and kwp:
-        out = []
-        for item in kwp:
-            if not isinstance(item, dict):
+        for it in kwp:
+            if not isinstance(it, dict):
                 continue
-            kw = str(item.get("keyword", "")).strip()
+            kw = str(it.get("keyword", "")).strip()
             if not kw:
                 continue
-            pr = item.get("priority", 0)
             try:
-                pr = int(pr)
+                pr = int(it.get("priority", 0))
             except Exception:
                 pr = 0
             out.append((kw, pr))
         if out:
             return out
 
-    # fallback: 기존 keywords
     kws = cfg.get("keywords", []) or []
     return [(str(k).strip(), 0) for k in kws if str(k).strip()]
 
@@ -219,9 +219,7 @@ _NAVER_HEADERS = {
 
 
 def parse_naver_published_time(url: str, tz) -> Optional[dt.datetime]:
-    """
-    네이버 기사 본문에서 발행시간 최대한 정확히 파싱
-    """
+    """네이버 기사 본문에서 발행시간 최대한 정확히 파싱"""
     try:
         r = requests.get(url, headers=_NAVER_HEADERS, timeout=10, allow_redirects=True)
         if r.status_code >= 400:
@@ -229,17 +227,14 @@ def parse_naver_published_time(url: str, tz) -> Optional[dt.datetime]:
 
         soup = BeautifulSoup(r.text, "html.parser")
 
-        # 1) meta article:published_time
         meta = soup.find("meta", property="article:published_time")
         if meta and meta.get("content"):
             return date_parser.parse(meta["content"]).astimezone(tz)
 
-        # 2) 네이버 뉴스 본문 data-date-time
         t = soup.select_one("span.media_end_head_info_datestamp_time")
         if t and t.get("data-date-time"):
             return date_parser.parse(t["data-date-time"]).astimezone(tz)
 
-        # 3) 일부 페이지 time 태그
         time_tag = soup.find("time")
         if time_tag and time_tag.get("datetime"):
             return date_parser.parse(time_tag["datetime"]).astimezone(tz)
@@ -251,12 +246,9 @@ def parse_naver_published_time(url: str, tz) -> Optional[dt.datetime]:
 
 
 def _parse_naver_relative_time(item_soup, tz) -> Optional[dt.datetime]:
-    """
-    네이버 검색결과의 '2시간 전', '5시간 전', '1일 전' 등을 파싱 (fallback)
-    """
+    """네이버 검색결과의 '2시간 전', '1일 전' 등 fallback"""
     try:
         now = _safe_now(tz)
-
         info_texts = [x.get_text(" ", strip=True) for x in item_soup.select("span.info")]
         text = " ".join(info_texts)
 
@@ -272,7 +264,6 @@ def _parse_naver_relative_time(item_soup, tz) -> Optional[dt.datetime]:
         if m:
             return now - dt.timedelta(days=int(m.group(1)))
 
-        # 절대 날짜가 있는 경우 (예: 2025.12.15.)
         m = re.search(r"(\d{4}\.\d{2}\.\d{2})\.?", text)
         if m:
             d = dt.datetime.strptime(m.group(1), "%Y.%m.%d").date()
@@ -292,9 +283,8 @@ def fetch_from_naver_news(
 ) -> List[Article]:
     """
     네이버 뉴스 검색:
-      - 페이지네이션으로 수집량 증가
-      - 본문 발행시간 파싱 실패 시 상대시간 fallback
-      - 그래도 실패하면 '버리지 않고' now로 저장(수집량 확보)
+      - pages를 config에서 받아 수집량 증가
+      - 발행시간 파싱 실패해도 버리지 않음(now로 대체)
     """
     base_url = "https://search.naver.com/search.naver"
     articles: List[Article] = []
@@ -302,12 +292,7 @@ def fetch_from_naver_news(
 
     for i in range(pages):
         start = 1 + i * 10
-        params = {
-            "where": "news",
-            "query": keyword,
-            "sort": 1,     # 최신순
-            "start": start,
-        }
+        params = {"where": "news", "query": keyword, "sort": 1, "start": start}
 
         try:
             r = requests.get(base_url, params=params, headers=_NAVER_HEADERS, timeout=10)
@@ -341,9 +326,8 @@ def fetch_from_naver_news(
             published = parse_naver_published_time(link, tz)
             if not published:
                 published = _parse_naver_relative_time(it, tz)
-
-            # ✅ 여기서 더 이상 버리지 않음 (기사 수 확보)
             if not published:
+                # ✅ 예전엔 여기서 continue로 버렸는데, 이제는 유지(수집량 확보)
                 published = _safe_now(tz)
 
             press = it.select_one("a.info.press")
@@ -369,13 +353,11 @@ def fetch_from_naver_news(
 def fetch_all_articles(cfg: Dict[str, Any]) -> List[Article]:
     tz = _get_tz(cfg)
     sources = cfg.get("news_sources", []) or []
+    kw_list = iter_keywords_with_priority(cfg)
 
     naver_pages = int(cfg.get("naver_pages", 8) or 8)
 
-    # keyword + priority 지원
-    kw_list = iter_keywords_with_priority(cfg)
-
-    seen_by_link = set()
+    seen = set()
     all_articles: List[Article] = []
 
     for src in sources:
@@ -383,19 +365,22 @@ def fetch_all_articles(cfg: Dict[str, Any]) -> List[Article]:
         host = (src.get("host") or "").strip()
 
         for kw, _priority in kw_list:
+            kw = (kw or "").strip()
+            if not kw:
+                continue
+
             if name == "NaverNews":
                 fetched = fetch_from_naver_news(kw, name, tz, cfg=cfg, pages=naver_pages)
             else:
                 base_query = f"{kw} site:{host}" if host else kw
-                # ✅ when:1d 제거 (RSS에서 0건 나오는 케이스 방지)
+                # ✅ when:1d 제거 (RSS에서 0건 되거나 불안정한 케이스 방지)
                 fetched = fetch_from_google_news(base_query, name or "GoogleNews", tz, cfg=cfg)
 
             for a in fetched:
-                # ✅ 링크 정규화 기준으로 중복 제거(키워드 많아도 폭증 방지)
-                key = normalize_url(a.link)
-                if key in seen_by_link:
+                key = normalize_url(a.link) or (a.title, a.source)
+                if key in seen:
                     continue
-                seen_by_link.add(key)
+                seen.add(key)
                 all_articles.append(a)
 
     return all_articles
@@ -405,6 +390,7 @@ def fetch_all_articles(cfg: Dict[str, Any]) -> List[Article]:
 # Date filter (최근 24시간 이내)
 # =========================
 def filter_yesterday_articles(articles: List[Article], cfg: Dict[str, Any]) -> List[Article]:
+    """기존 함수명 유지 / 동작은 최근 24시간"""
     tz = _get_tz(cfg)
     now = _safe_now(tz)
     start = now - dt.timedelta(hours=24)
@@ -424,7 +410,6 @@ def filter_yesterday_articles(articles: List[Article], cfg: Dict[str, Any]) -> L
 # Keyword filter (호환 유지)
 # =========================
 def filter_by_keywords(articles: List[Article], cfg: Dict[str, Any]) -> List[Article]:
-    # keywords_with_priority가 있으면 거기 keyword를 사용
     kwp = cfg.get("keywords_with_priority")
     if isinstance(kwp, list) and kwp:
         keywords = [str(x.get("keyword", "")).lower() for x in kwp if isinstance(x, dict) and x.get("keyword")]
@@ -443,13 +428,15 @@ def filter_by_keywords(articles: List[Article], cfg: Dict[str, Any]) -> List[Art
 # Finance filter function required by newsletter.py (호환 유지)
 # =========================
 def filter_out_finance_articles(articles):
+    """
+    newsletter.py 호환용.
+    - 주식/투자/재무/실적 기사 제외
+    - 다비치(가수/연예) 기사 제외
+    """
     filtered = []
-
     for a in articles:
         if hasattr(a, "title") and hasattr(a, "summary"):
-            title = getattr(a, "title", "") or ""
-            summary = getattr(a, "summary", "") or ""
-            if should_exclude_article(title, summary):
+            if should_exclude_article(a.title, a.summary):
                 continue
             filtered.append(a)
             continue
