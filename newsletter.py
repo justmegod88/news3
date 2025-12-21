@@ -51,8 +51,14 @@ def main():
     )
 
     email = cfg["email"]
-    subject = f"{email.get('subject_prefix', '[Daily News]')} 어제 기사 브리핑"
+    
+     # 어제 날짜 문자열
+     yesterday = (dt.datetime.now(tz).date() - dt.timedelta(days=1)).strftime("%Y-%m-%d")
 
+     subject = (
+    f"{email.get('subject_prefix', '[Daily News]')} "
+    f"어제 기사 브리핑_{yesterday}"
+)
     send_email_html(
         subject=subject,
         html_body=html,
