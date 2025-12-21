@@ -1,14 +1,15 @@
 import datetime as dt
 from urllib.parse import urlparse, urlunparse
 from zoneinfo import ZoneInfo
+import re
 
 from jinja2 import Environment, FileSystemLoader
 
 from scrapers import (
     load_config,
     fetch_all_articles,
-    filter_yesterday_articles,   # ✅ 어제 하루(고정) + 네이버 날짜만
-    filter_out_finance_articles, # ✅ 투자/재무/실적 + 가수다비치 제외
+    filter_yesterday_articles,
+    filter_out_finance_articles,
 )
 from categorizer import categorize_articles
 from summarizer import summarize_overall, refine_article_summaries
@@ -20,29 +21,78 @@ def _log(step: str, n: int):
 
 
 def _normalize_link(url: str) -> str:
+    """
+    링크 중복 제거용 정규화:
+    - query/fragment 제거
+    - host 소문자
+    - trailing slash 정리
+    """
     if not url:
-        return url
+        return ""
     try:
         p = urlparse(url)
-        return urlunparse(p._replace(query="", fragment=""))
+        netloc = (p.netloc or "").lower()
+        path = p.path or ""
+        if path != "/" and path.endswith("/"):
+            path = path.rstrip("/")
+        return urlunparse((p.scheme, netloc, path, "", "", ""))
     except Exception:
-        return url
+        return url or ""
 
 
-def dedup_articles_by_link(articles):
+def _normalize_title(title: str) -> str:
     """
-    ✅ 뉴스레터에서만 중복 제거:
-    - 링크 기준으로만 중복 제거 (공격적 제거 X)
+    (링크가 비어있을 때만) 최소한의 제목 정규화:
+    - 공백 정리
+    - 따옴표/괄호 정도만 제거
     """
-    seen = set()
+    t = (title or "").strip().lower()
+    t = re.sub(r"\s+", " ", t)
+    t = re.sub(r"[“”\"'’`]", "", t)
+    t = re.sub(r"[$begin:math:display$$end:math:display$$begin:math:text$$end:math:text$<>]", "", t)
+    return t
+
+
+def dedup_articles_only_duplicates(articles):
+    """
+    ✅ 목적: '중복만' 삭제하고 기사 수는 최대 유지
+    1) 링크 정규화 기준으로 중복 제거 (원칙)
+    2) 링크가 비어있거나 정규화가 실패한 경우에만:
+       (제목 정규화 + 언론사 + 발행일(date))이 완전히 같을 때만 제거
+    """
     out = []
+    seen_links = set()
+    seen_fallback = set()
+
     for a in articles:
-        link = _normalize_link(getattr(a, "link", "") or "")
-        key = link if link else (getattr(a, "title", ""), getattr(a, "source", ""))
-        if key in seen:
+        link_raw = getattr(a, "link", "") or ""
+        link_key = _normalize_link(link_raw)
+
+        # 1) 링크가 있으면 링크로만 중복 제거
+        if link_key:
+            if link_key in seen_links:
+                continue
+            seen_links.add(link_key)
+            out.append(a)
             continue
-        seen.add(key)
+
+        # 2) 링크가 없을 때만 매우 제한적으로 중복 제거
+        title_key = _normalize_title(getattr(a, "title", "") or "")
+        source_key = (getattr(a, "source", "") or "").strip().lower()
+
+        try:
+            pub_date = getattr(a, "published").date()
+        except Exception:
+            pub_date = None
+
+        fb_key = (title_key, source_key, pub_date)
+        if title_key and source_key and pub_date is not None:
+            if fb_key in seen_fallback:
+                continue
+            seen_fallback.add(fb_key)
+
         out.append(a)
+
     return out
 
 
@@ -69,47 +119,40 @@ def main():
     cfg = load_config("config.yaml")
     tz = ZoneInfo(cfg.get("timezone", "Asia/Seoul"))
 
-    # 기준 날짜: 어제(달력 기준)
     today = dt.datetime.now(tz=tz).date()
     yesterday = today - dt.timedelta(days=1)
 
     print("🚀 뉴스레터 생성 시작")
 
-    # 1) 전체 기사 수집(키워드 기반으로 최대한)
+    # 1) 수집 (최대한 많이)
     all_articles = fetch_all_articles(cfg)
     _log("전체 수집(원본)", len(all_articles))
 
-    # 2) 어제 하루(00:00~23:59)만 포함
+    # 2) 어제 하루만
     y_articles = filter_yesterday_articles(all_articles, cfg)
     _log(f"어제({yesterday.isoformat()}) 기사 필터 후", len(y_articles))
 
-    # 3) 투자/재무/실적 + 가수 다비치 제외
+    # 3) 투자/재무 + 가수 다비치 제외 (필터는 최소만)
     y_articles = filter_out_finance_articles(y_articles)
     _log("투자/재무 + 가수다비치 제외 후", len(y_articles))
 
-    # 4) 뉴스레터에서만 링크 기준 중복 제거
-    y_articles = dedup_articles_by_link(y_articles)
+    # 4) ✅ 중복만 삭제 (과하게 안 지움)
+    y_articles = dedup_articles_only_duplicates(y_articles)
     _log("중복 제거 후", len(y_articles))
 
     # 5) 요약 다듬기
     refine_article_summaries(y_articles)
 
-    # 6) 카테고리 분류
+    # 6) 분류
     categorized = categorize_articles(y_articles)
-    print("📦 카테고리별")
-    print(f"  - ACUVUE: {len(categorized.acuvue)}")
-    print(f"  - 업체별 활동(타사): {len(categorized.company)}")
-    print(f"  - 제품 카테고리: {len(categorized.product)}")
-    print(f"  - 업계 동향: {len(categorized.trend)}")
-    print(f"  - 눈 건강/캠페인: {len(categorized.eye_health)}")
 
-    # 7) 전체 브리핑 생성
+    # 7) 전체 브리핑
     yesterday_summary = summarize_overall(y_articles)
 
-    # 8) HTML 렌더링
+    # 8) HTML
     html_body = render_newsletter_html(cfg, categorized, yesterday_summary)
 
-    # 9) 메일 발송
+    # 9) 발송
     email_conf = cfg["email"]
     subject_prefix = email_conf.get("subject_prefix", "[Daily News]")
     subject = f"{subject_prefix} 어제({yesterday.isoformat()}) 기사 브리핑"
