@@ -4,144 +4,100 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    /* ===============================
-       0) 전체 폰트 & 기본 타이포 (메일 안전)
-       =============================== */
+    /* 기본 폰트 (메일 안전) */
     body {
       margin:0;
       padding:0;
       background:#ffffff;
       font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-      font-size:13px;
-      line-height:1.6;
       -webkit-text-size-adjust:100%;
       -ms-text-size-adjust:100%;
     }
 
-    /* Outlook 포함: 폰트 강제 상속 */
-    table, td, th, div, p, span, a, h1, h2, h3 {
-      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-    }
-
-    /* ===============================
-       1) 레이아웃 기본
-       =============================== */
+    /* 모바일/아이패드 기본 유지 */
     .container{
       max-width:640px;
       margin:0 auto;
       padding:16px;
       box-sizing:border-box;
+      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */
     }
 
-    /* 섹션 제목 (ACUVUE 기사 / 어제 기사 리스트) */
     h2{
       margin-top:26px;
       margin-bottom:8px;
       color:#003f7f;
-      font-size:18px;
+      font-size:16px;   /* ← 여기 */
       font-weight:700;
-      line-height:1.25;
-      mso-line-height-rule:exactly;
-    }
+      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */
+      }
 
-    /* ===============================
-       2) AI 브리핑 영역
-       =============================== */
+    /* 어제 기사 AI 브리핑 (하늘색 영역) */
     .summary{
       background:#eaf3ff;
       padding:12px 14px;
       border-left:4px solid #003f7f;
-      margin:14px 0 22px 0;
-      font-size:14px;
+      margin:14px 0 18px 0;
+      font-size:13px;
       line-height:1.6;
       mso-line-height-rule:exactly;
+      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */
     }
 
-    /* ===============================
-       3) ACUVUE 기사 카드
-       =============================== */
+    /* 카드 (ACUVUE 기사) */
     .card{
       border:1px solid #e0e0e0;
       padding:12px;
       border-radius:6px;
-      margin-bottom:14px;
+      margin-bottom:12px;
+      font-size:13px;
       background:#ffffff;
-      font-size:13px;
+      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */
     }
-    .card-title{
-      font-size:15px;
-      font-weight:700;
-      line-height:1.35;
-      margin-bottom:4px;
-      mso-line-height-rule:exactly;
-    }
-    .card-meta{
-      font-size:12px;
-      color:#777;
-      margin:2px 0 6px 0;
-      line-height:1.3;
-      mso-line-height-rule:exactly;
-    }
-    .card-summary{
-      font-size:13px;
-      line-height:1.6;
-      margin-bottom:8px;
-      mso-line-height-rule:exactly;
-    }
+    .card-title{ font-weight:700; font-size:14px; margin-bottom:4px; font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */}
+    .card-meta{ font-size:12px; color:#777; margin:2px 0 6px 0; font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */}
+    .card-summary{ font-size:13px; margin:4px 0 8px 0; line-height:1.6;font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */ }
 
-    /* ===============================
-       4) 기사 리스트 테이블 (완전 고정)
-       =============================== */
+    /* 테이블 (Outlook-safe) */
     table.news-table{
       width:100%;
       border-collapse:collapse;
       table-layout:fixed;
-      margin-top:8px;
-      margin-bottom:0; /* 간격은 블록에서 통제 */
+      margin-top:6px;
+      margin-bottom:22px;
+      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
     }
-
     table.news-table th,
     table.news-table td{
       padding:10px 8px;
+      font-size:12px;
+      line-height:16px;
+      mso-line-height-rule:exactly;
       word-break:break-word;
       overflow-wrap:break-word;
-      mso-line-height-rule:exactly;
+      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */
     }
-
-    /* 테이블 헤더 */
     table.news-table th{
       background:#f3f7ff;
       border-bottom:1px solid #dde3f5;
       text-align:left;
-      font-size:13px;
       font-weight:700;
-      height:38px;
-      line-height:38px;
-      padding:0 8px;
+      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */
+
+      /* ✅ 요청: 테이블 워딩 상하 중앙 */
       vertical-align:middle;
+      height:38px;            /* Outlook에서도 높이 고정 */
+      line-height:38px;       /* 헤더 한 줄일 때 중앙 정렬 느낌 */
+      padding:0 8px;
     }
-
-    /* 테이블 바디 (모든 카테고리 동일 기준) */
     table.news-table td{
-      font-size:12px;
-      line-height:16px;
-      vertical-align:top;
       border-top:1px solid #eee;
+      vertical-align:top;
     }
-
-    table.news-table td a{
-      font-size:12px;
-      line-height:16px;
-      display:inline-block;
-    }
-
     table.news-table tr:nth-child(even) td{
       background:#fafafa;
     }
 
-    /* ===============================
-       5) 링크 / 푸터
-       =============================== */
     a{ color:#0066cc; text-decoration:none; }
     a:hover{ text-decoration:underline; }
 
@@ -149,51 +105,54 @@
       text-align:center;
       font-size:11px;
       color:#777;
-      margin-top:26px;
-      line-height:1.4;
-      mso-line-height-rule:exactly;
+      margin-top:22px;
     }
 
-    /* ===============================
-       6) 모바일 미세 조정
-       =============================== */
-    @media only screen and (max-width:480px){
+    @media only screen and (max-width: 480px){
       .container{ padding:12px; }
-      h2{ font-size:17px; }
-      .summary{ font-size:13px; }
       .card-title{ font-size:14px; }
     }
   </style>
 </head>
 
 <body>
-  <!-- Outlook(PC) 전용 폭 고정 -->
+  <!-- ✅ Outlook(PC) 전용 폭 고정 래퍼 (모바일은 기존 그대로) -->
   <!--[if mso]>
   <table role="presentation" width="640" align="center" cellpadding="0" cellspacing="0" border="0">
-    <tr><td style="padding:16px;">
+    <tr>
+      <td style="padding:16px;">
   <![endif]-->
 
   <div class="container">
 
     <!-- 헤더 -->
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:14px;">
       <tr>
-        <td align="left" valign="middle">
-          <div style="font-size:24px;font-weight:700;color:#245caa;line-height:1.2;">
+        <td align="left" valign="middle" style="padding:0;">
+          <div style="font-size:24px;font-weight:700;color:#245caa;line-height:1.2;mso-line-height-rule:exactly;">
             Daily News Monitoring
           </div>
-          <div style="font-size:11px;color:#555;line-height:1.4;">
+          <div style="font-size:11px;color:#555;line-height:1.4;mso-line-height-rule:exactly;">
             {{ today_date }}
           </div>
         </td>
-        <td align="right" valign="middle" style="width:80px;font-size:0;line-height:0;">
-          <img src="cid:acuvue_logo" alt="ACUVUE Logo" width="64" height="64"
-               style="display:block;border-radius:20px;" />
+
+        <!-- ✅ 여기서 '>'가 보이는 문제 해결:
+             1) 실제 '>' 문자가 있으면 제거
+             2) 혹시 남아도 font-size:0 으로 무력화 -->
+        <td align="right" valign="middle" style="width:80px; padding:0; font-size:0; line-height:0;">
+          <img
+            src="cid:acuvue_logo"
+            alt="ACUVUE Logo"
+            width="64"
+            height="64"
+            style="display:block;border-radius:20px;"
+          />
         </td>
       </tr>
     </table>
 
-    <!-- AI 브리핑 -->
+    <!-- 어제 기사 AI 브리핑 -->
     <div class="summary">
       <strong>[어제 기사 AI 브리핑]</strong><br />
       {{ yesterday_summary }}
@@ -212,32 +171,35 @@
       </div>
       {% endfor %}
     {% else %}
-      <div class="card">어제는 별도의 아큐브 관련 기사가 수집되지 않았습니다.</div>
+      <div class="card" style="margin-bottom:18px;">
+        어제는 별도의 아큐브 관련 기사가 수집되지 않았습니다.
+      </div>
     {% endif %}
 
-    <!-- 어제 기사 리스트 -->
     <h2>📋 어제 기사 리스트</h2>
 
     {% macro table_block(title, articles) %}
-    <!-- ✅ 카테고리 간 간격 2배 고정 -->
-    <div style="margin-top:28px;padding-top:12px;border-top:1px solid #eeeeee;">
+    <div style="margin-top:14px;border-top:1px solid #eeeeee;padding-top:10px;">
       <div style="font-size:13px;font-weight:700;color:#333;margin-bottom:6px;">
         {{ title }}
       </div>
 
       <table class="news-table">
+        <!-- ✅ 요청: 카테고리별 가로 테이블/컬럼폭 고정 (Outlook-safe) -->
         <colgroup>
           <col width="25%">
           <col width="20%">
           <col width="40%">
           <col width="15%">
         </colgroup>
+
         <tr>
           <th>제목</th>
           <th>언론사</th>
           <th>요약</th>
           <th>링크</th>
         </tr>
+
         {% for a in articles %}
         <tr>
           <td>{{ a.title }}</td>
@@ -262,7 +224,8 @@
   </div>
 
   <!--[if mso]>
-    </td></tr>
+      </td>
+    </tr>
   </table>
   <![endif]-->
 </body>
