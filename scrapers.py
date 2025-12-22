@@ -36,7 +36,7 @@ class Article:
 
 
 # =========================
-# Exclusion rules (최소)
+# Exclusion rules (최소한)
 # =========================
 FINANCE_KEYWORDS = [
     "주가", "주식", "증시", "투자", "재무", "실적",
@@ -49,22 +49,22 @@ DAVICHI_SINGER_NAMES = ["강민경", "이해리"]
 DAVICHI_SINGER_HINTS = [
     "가수", "음원", "신곡", "컴백", "앨범",
     "콘서트", "공연", "뮤직비디오",
-    "차트", "유튜브", "방송", "예능", "ost", "연예"
+    "차트", "유튜브", "방송", "예능", "ost", "연예",
 ]
 
 FACE_AGING_HINTS = [
     "얼굴", "피부", "주름", "리프팅", "안티에이징",
-    "동안", "보톡스", "필러", "시술", "화장품", "뷰티"
+    "동안", "보톡스", "필러", "시술", "화장품", "뷰티",
 ]
 
 OPTICAL_HINTS = [
     "안경", "렌즈", "콘택트", "콘택트렌즈",
-    "시력", "안과", "검안", "노안 렌즈", "다초점"
+    "시력", "안과", "검안", "노안 렌즈", "다초점",
 ]
 
 
-def _normalize(t: str) -> str:
-    return re.sub(r"\s+", " ", (t or "")).strip().lower()
+def _normalize(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "")).strip().lower()
 
 
 def should_exclude_article(title: str, summary: str = "") -> bool:
@@ -74,12 +74,12 @@ def should_exclude_article(title: str, summary: str = "") -> bool:
     if any(k in full for k in FINANCE_KEYWORDS):
         return True
 
-    # 얼굴 노안 (광학 문맥 아니면 제외)
+    # 얼굴 노안 제외 (광학 문맥은 살림)
     if "노안" in full and any(k in full for k in FACE_AGING_HINTS):
         if not any(k in full for k in OPTICAL_HINTS):
             return True
 
-    # 가수 다비치 / 멤버
+    # 가수 다비치 / 멤버 제외
     if any(n in full for n in DAVICHI_SINGER_NAMES):
         return True
 
@@ -114,8 +114,8 @@ def _safe_now(tz):
 # =========================
 # Helpers
 # =========================
-def parse_rss_datetime(v, tz):
-    d = date_parser.parse(v)
+def parse_rss_datetime(value, tz):
+    d = date_parser.parse(value)
     if d.tzinfo is None:
         return d.replace(tzinfo=tz)
     return d.astimezone(tz)
@@ -151,27 +151,52 @@ def resolve_final_url(link: str) -> str:
 
 
 # =========================
-# 느슨 중복 제거 (URL만)
+# ✅ 중복 제거 (URL + 제목)
 # =========================
 def _normalize_url(url: str) -> str:
     if not url:
         return ""
     p = urlparse(url)
-    path = p.path.rstrip("/")
-    return f"{p.scheme}://{p.netloc}{path}"
+    path = (p.path or "").rstrip("/")
+    scheme = p.scheme or "https"
+    return f"{scheme}://{p.netloc.lower()}{path}"
+
+
+def _normalize_title(title: str) -> str:
+    t = (title or "").lower().strip()
+    t = re.sub(r"\[[^\]]+\]", " ", t)      # [단독]
+    t = re.sub(r"\([^)]*\)", " ", t)       # (종합)
+    t = re.sub(r"[^\w가-힣]+", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
 
 
 def deduplicate_articles(articles: List[Article]) -> List[Article]:
-    seen = set()
+    """
+    중복 기준:
+    1) URL 동일 → 제거
+    2) 제목 동일(정규화) → 제거
+    """
+    seen_urls = set()
+    seen_titles = set()
     out = []
 
     for a in articles:
         a.link = resolve_final_url(a.link)
-        key = _normalize_url(a.link)
-        if key and key in seen:
+
+        url_key = _normalize_url(a.link)
+        title_key = _normalize_title(a.title)
+
+        if url_key and url_key in seen_urls:
             continue
-        if key:
-            seen.add(key)
+        if title_key and title_key in seen_titles:
+            continue
+
+        if url_key:
+            seen_urls.add(url_key)
+        if title_key:
+            seen_titles.add(title_key)
+
         out.append(a)
 
     return out
@@ -180,14 +205,6 @@ def deduplicate_articles(articles: List[Article]) -> List[Article]:
 # =========================
 # Google News
 # =========================
-def _google_entry_datetime(e, tz):
-    if getattr(e, "published", None):
-        return parse_rss_datetime(e.published, tz)
-    # fallback: 어제 정오
-    y = _safe_now(tz).date() - dt.timedelta(days=1)
-    return dt.datetime.combine(y, dt.time(12, 0)).replace(tzinfo=tz)
-
-
 def fetch_from_google_news(query, source_name, tz):
     feed = feedparser.parse(build_google_news_url(query))
     articles = []
@@ -195,7 +212,10 @@ def fetch_from_google_news(query, source_name, tz):
     for e in getattr(feed, "entries", []):
         title, press2 = parse_google_title_and_press(e.title)
         summary = clean_summary(getattr(e, "summary", ""))
-        published = _google_entry_datetime(e, tz)
+        published = parse_rss_datetime(
+            getattr(e, "published", None) or getattr(e, "updated", None),
+            tz,
+        )
 
         press1 = ""
         if getattr(e, "source", None):
@@ -245,8 +265,8 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
 
             title = a.get("title", "")
             link = a.get("href", "")
-            summary = it.select_one("div.news_dsc")
-            summary = summary.get_text(" ", strip=True) if summary else ""
+            summary_tag = it.select_one("div.news_dsc")
+            summary = summary_tag.get_text(" ", strip=True) if summary_tag else ""
 
             if should_exclude_article(title, summary):
                 continue
@@ -254,13 +274,11 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
             press = it.select_one("a.info.press")
             source = press.get_text(strip=True) if press else source_name
 
-            published = _safe_now(tz)
-
             articles.append(
                 Article(
                     title=title,
                     link=link,
-                    published=published,
+                    published=_safe_now(tz),
                     source=source,
                     summary=summary,
                     is_naver=True,
