@@ -20,17 +20,18 @@
       margin:0 auto;
       padding:16px;
       box-sizing:border-box;
-      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */
+      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      background:#ffffff;
     }
 
     h2{
       margin-top:26px;
       margin-bottom:8px;
       color:#003f7f;
-      font-size:16px;   /* ← 여기 */
+      font-size:16px;
       font-weight:700;
-      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */
-      }
+      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    }
 
     /* 어제 기사 AI 브리핑 (하늘색 영역) */
     .summary{
@@ -41,7 +42,7 @@
       font-size:13px;
       line-height:1.6;
       mso-line-height-rule:exactly;
-      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */
+      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
     }
 
     /* 카드 (ACUVUE 기사) */
@@ -52,11 +53,26 @@
       margin-bottom:12px;
       font-size:13px;
       background:#ffffff;
-      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */
+      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
     }
-    .card-title{ font-weight:700; font-size:14px; margin-bottom:4px; font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */}
-    .card-meta{ font-size:12px; color:#777; margin:2px 0 6px 0; font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */}
-    .card-summary{ font-size:13px; margin:4px 0 8px 0; line-height:1.6;font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */ }
+    .card-title{
+      font-weight:700;
+      font-size:14px;
+      margin-bottom:4px;
+      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    }
+    .card-meta{
+      font-size:12px;
+      color:#777;
+      margin:2px 0 6px 0;
+      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    }
+    .card-summary{
+      font-size:13px;
+      margin:4px 0 8px 0;
+      line-height:1.6;
+      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    }
 
     /* 테이블 (Outlook-safe) */
     table.news-table{
@@ -75,19 +91,18 @@
       mso-line-height-rule:exactly;
       word-break:break-word;
       overflow-wrap:break-word;
-      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */
+      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
     }
     table.news-table th{
       background:#f3f7ff;
       border-bottom:1px solid #dde3f5;
       text-align:left;
       font-weight:700;
-      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; /* ← 여기 */
 
-      /* ✅ 요청: 테이블 워딩 상하 중앙 */
+      /* ✅ 테이블 헤더 상하 중앙 느낌 */
       vertical-align:middle;
-      height:38px;            /* Outlook에서도 높이 고정 */
-      line-height:38px;       /* 헤더 한 줄일 때 중앙 정렬 느낌 */
+      height:38px;
+      line-height:38px;
       padding:0 8px;
     }
     table.news-table td{
@@ -108,19 +123,35 @@
       margin-top:22px;
     }
 
+    /* ✅ 모바일(기존 유지) */
     @media only screen and (max-width: 480px){
       .container{ padding:12px; }
       .card-title{ font-size:14px; }
+    }
+
+    /* ✅ PC 웹메일(지메일 등)에서만: 바깥 배경 + 컨테이너 테두리 */
+    @media only screen and (min-width: 1024px){
+      body{ background:#f5f7fb; }
+      .container{
+        margin:24px auto;
+        border:1px solid #e6eaf2;
+        border-radius:12px;
+        box-shadow:0 6px 20px rgba(0,0,0,0.06);
+        padding:20px;
+      }
     }
   </style>
 </head>
 
 <body>
-  <!-- ✅ Outlook(PC) 전용 폭 고정 래퍼 (모바일은 기존 그대로) -->
+  <!-- ✅ Outlook(PC) 전용: 바깥 배경 + 카드 테두리 적용 -->
   <!--[if mso]>
-  <table role="presentation" width="640" align="center" cellpadding="0" cellspacing="0" border="0">
+  <table role="presentation" width="100%" align="center" cellpadding="0" cellspacing="0" border="0" style="background:#f5f7fb;">
     <tr>
-      <td style="padding:16px;">
+      <td align="center" style="padding:24px 0;">
+        <table role="presentation" width="640" align="center" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border:1px solid #e6eaf2;">
+          <tr>
+            <td style="padding:20px;">
   <![endif]-->
 
   <div class="container">
@@ -137,9 +168,6 @@
           </div>
         </td>
 
-        <!-- ✅ 여기서 '>'가 보이는 문제 해결:
-             1) 실제 '>' 문자가 있으면 제거
-             2) 혹시 남아도 font-size:0 으로 무력화 -->
         <td align="right" valign="middle" style="width:80px; padding:0; font-size:0; line-height:0;">
           <img
             src="cid:acuvue_logo"
@@ -179,13 +207,13 @@
     <h2>📋 어제 기사 리스트</h2>
 
     {% macro table_block(title, articles) %}
+    {% set items = articles or [] %}
     <div style="margin-top:14px;border-top:1px solid #eeeeee;padding-top:10px;">
       <div style="font-size:13px;font-weight:700;color:#333;margin-bottom:6px;">
         {{ title }}
       </div>
 
       <table class="news-table">
-        <!-- ✅ 요청: 카테고리별 가로 테이블/컬럼폭 고정 (Outlook-safe) -->
         <colgroup>
           <col width="25%">
           <col width="20%">
@@ -200,14 +228,23 @@
           <th>링크</th>
         </tr>
 
-        {% for a in articles %}
+        {% if items|length == 0 %}
+        <!-- ✅ 기사 0건이어도 테이블 형태/배열 유지 -->
         <tr>
-          <td>{{ a.title }}</td>
-          <td>{{ a.source }}</td>
-          <td>{{ a.summary }}</td>
-          <td><a href="{{ a.link }}" target="_blank">보기</a></td>
+          <td colspan="4" style="color:#777; padding:12px 8px;">
+            수집된 기사가 없습니다.
+          </td>
         </tr>
-        {% endfor %}
+        {% else %}
+          {% for a in items %}
+          <tr>
+            <td>{{ a.title }}</td>
+            <td>{{ a.source }}</td>
+            <td>{{ a.summary }}</td>
+            <td><a href="{{ a.link }}" target="_blank">보기</a></td>
+          </tr>
+          {% endfor %}
+        {% endif %}
       </table>
     </div>
     {% endmacro %}
@@ -224,6 +261,9 @@
   </div>
 
   <!--[if mso]>
+            </td>
+          </tr>
+        </table>
       </td>
     </tr>
   </table>
