@@ -1,96 +1,69 @@
-from datetime import datetime
+import datetime as dt
+from zoneinfo import ZoneInfo
+
 from jinja2 import Environment, FileSystemLoader
 
+from scrapers import (
+    load_config,
+    fetch_all_articles,
+    filter_yesterday_articles,
+    filter_out_finance_articles,
+    deduplicate_articles,
+)
+from categorizer import categorize_articles
+from summarizer import summarize_overall, refine_article_summaries
 from mailer import send_email_html
 
 
-def build_yesterday_summary(
-    acuvue_articles,
-    company_articles,
-    product_articles,
-    trend_articles,
-    eye_health_articles,
-):
-    sentences = []
+def main():
+    cfg = load_config()
+    tz = ZoneInfo(cfg.get("timezone", "Asia/Seoul"))
 
-    if acuvue_articles:
-        sentences.append(
-            "어제 기사 중 ACUVUE 관련 내용으로는 "
-            + " / ".join([a["title"] for a in acuvue_articles[:2]])
-            + " 등이 주요하게 다뤄졌습니다."
-        )
+    # 1) 수집
+    articles = fetch_all_articles(cfg)
 
-    category_points = []
+    # 2) 제외 규칙 적용(투자/재무/실적 + 가수다비치/강민경/이해리 + 얼굴노안 등)
+    articles = filter_out_finance_articles(articles)
 
-    if company_articles:
-        category_points.append("경쟁사 및 업체별 활동")
-    if product_articles:
-        category_points.append("제품 카테고리별 이슈")
-    if trend_articles:
-        category_points.append("업계 전반 동향")
-    if eye_health_articles:
-        category_points.append("눈 건강 및 캠페인 관련 움직임")
+    # 3) 날짜 필터: 어제 기사만
+    articles = filter_yesterday_articles(articles, cfg)
 
-    if category_points:
-        sentences.append(
-            "이와 함께 "
-            + ", ".join(category_points)
-            + " 관련 기사들이 확인되었습니다."
-        )
+    # 4) 중복 제거(느슨: URL 완전 동일만)
+    articles = deduplicate_articles(articles)
 
-    sentences.append(
-        "전반적으로 시장 및 경쟁 환경의 변화가 "
-        "향후 전략 수립 시 참고할 만한 흐름으로 판단됩니다."
-    )
+    # 5) 요약/분류
+    refine_article_summaries(articles)
+    categorized = categorize_articles(articles)
+    summary = summarize_overall(articles)
 
-    return " ".join(sentences[:3])
-
-
-def run_newsletter(
-    acuvue_articles,
-    company_articles,
-    product_articles,
-    trend_articles,
-    eye_health_articles,
-    to_addrs,
-):
-    today_date = datetime.now().strftime("%Y-%m-%d")
-
-    yesterday_summary = build_yesterday_summary(
-        acuvue_articles,
-        company_articles,
-        product_articles,
-        trend_articles,
-        eye_health_articles,
-    )
-
-    env = Environment(loader=FileSystemLoader("."))
+    # 6) 템플릿 렌더링
+    env = Environment(loader=FileSystemLoader("."), autoescape=True)
     template = env.get_template("template_newsletter.html")
 
-    html_body = template.render(
-        today_date=today_date,
-        yesterday_summary=yesterday_summary,
-        acuvue_articles=acuvue_articles,
-        company_articles=company_articles,
-        product_articles=product_articles,
-        trend_articles=trend_articles,
-        eye_health_articles=eye_health_articles,
+    html = template.render(
+        today_date=dt.datetime.now(tz).strftime("%Y-%m-%d"),
+        yesterday_summary=summary,
+        acuvue_articles=categorized.acuvue,
+        company_articles=categorized.company,
+        product_articles=categorized.product,
+        trend_articles=categorized.trend,
+        eye_health_articles=categorized.eye_health,
     )
 
+    # 7) 메일 제목: 어제 기사 브리핑 - YYYY-MM-DD
+    email = cfg["email"]
+    yesterday_str = (dt.datetime.now(tz).date() - dt.timedelta(days=1)).strftime("%Y-%m-%d")
+    subject_prefix = email.get("subject_prefix", "[Daily News]")
+    subject = f"{subject_prefix} 어제 기사 브리핑 - {yesterday_str}"
+
+    # 8) 발송
     send_email_html(
-        subject=f"[ACUVUE Daily News] 어제 기사 브리핑 - {today_date}",
-        html_body=html_body,
-        from_addr="newsletter@acuvue.com",
-        to_addrs=to_addrs,
+        subject=subject,
+        html_body=html,
+        from_addr=email["from"],
+        to_addrs=email["to"],
     )
 
 
 if __name__ == "__main__":
-    run_newsletter(
-        acuvue_articles=[],
-        company_articles=[],
-        product_articles=[],
-        trend_articles=[],
-        eye_health_articles=[],
-        to_addrs=["you@example.com"],
-    )
+    main()
