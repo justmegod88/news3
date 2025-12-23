@@ -4,17 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    /* 기본 폰트 (메일 안전) */
-    body {
-      margin:0;
-      padding:0;
+    body{
+      margin:0; padding:0;
       background:#ffffff;
       font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
       -webkit-text-size-adjust:100%;
       -ms-text-size-adjust:100%;
     }
 
-    /* 모바일/아이패드 기본 유지 */
     .container{
       max-width:640px;
       margin:0 auto;
@@ -33,19 +30,19 @@
       font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
     }
 
-    /* 어제 기사 AI 브리핑 (하늘색 영역) */
+    /* ✅ (1) 요약 박스 좌우 여백 */
     .summary{
       background:#eaf3ff;
-      padding:12px 14px;
+      padding:14px 22px;              /* ← 좌우 여백 증가 */
       border-left:4px solid #003f7f;
       margin:14px 0 18px 0;
       font-size:13px;
-      line-height:1.6;
+      line-height:1.65;
       mso-line-height-rule:exactly;
       font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      border-radius:6px;
     }
 
-    /* 카드 (ACUVUE 기사) */
     .card{
       border:1px solid #e0e0e0;
       padding:12px;
@@ -55,26 +52,10 @@
       background:#ffffff;
       font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
     }
-    .card-title{
-      font-weight:700;
-      font-size:14px;
-      margin-bottom:4px;
-      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-    }
-    .card-meta{
-      font-size:12px;
-      color:#777;
-      margin:2px 0 6px 0;
-      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-    }
-    .card-summary{
-      font-size:13px;
-      margin:4px 0 8px 0;
-      line-height:1.6;
-      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-    }
+    .card-title{ font-weight:700; font-size:14px; margin-bottom:4px; }
+    .card-meta{ font-size:12px; color:#777; margin:2px 0 6px 0; }
+    .card-summary{ font-size:13px; margin:4px 0 8px 0; line-height:1.6; }
 
-    /* 테이블 (Outlook-safe) */
     table.news-table{
       width:100%;
       border-collapse:collapse;
@@ -91,46 +72,12 @@
       mso-line-height-rule:exactly;
       word-break:break-word;
       overflow-wrap:break-word;
-      font-family: Arial, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
     }
     table.news-table th{
       background:#f3f7ff;
       border-bottom:1px solid #dde3f5;
       text-align:left;
       font-weight:700;
-<table class="news-table">
-        <colgroup>
-          <col width="25%">
-          <col width="20%">
-          <col width="40%">
-          <col width="15%">
-        </colgroup>
-
-        <tr>
-          <th>제목</th>
-          <th>언론사</th>
-          <th>요약</th>
-          <th>링크</th>
-        </tr>
-
-        {% if items|length == 0 %}
-        <!-- ✅ 기사 0건이어도 테이블 형태/배열 유지 -->
-        <tr>
-          <td colspan="4" style="color:#777; padding:12px 8px;">
-            수집된 기사가 없습니다.
-          </td>
-        </tr>
-        {% else %}
-          {% for a in items %}
-          <tr>
-            <td>{{ a.title }}</td>
-            <td>{{ a.source }}</td>
-            <td>{{ a.summary }}</td>
-            <td><a href="{{ a.link }}" target="_blank">보기</a></td>
-          </tr>
-      
-
-      /* ✅ 테이블 헤더 상하 중앙 느낌 */
       vertical-align:middle;
       height:38px;
       line-height:38px;
@@ -140,8 +87,12 @@
       border-top:1px solid #eee;
       vertical-align:top;
     }
-    table.news-table tr:nth-child(even) td{
-      background:#fafafa;
+    table.news-table tr:nth-child(even) td{ background:#fafafa; }
+
+    /* ✅ (2) 링크 컬럼 오른쪽 정렬 고정 */
+    th.col-link, td.col-link{
+      text-align:right;
+      white-space:nowrap;
     }
 
     a{ color:#0066cc; text-decoration:none; }
@@ -154,13 +105,11 @@
       margin-top:22px;
     }
 
-    /* ✅ 모바일(기존 유지) */
     @media only screen and (max-width: 480px){
       .container{ padding:12px; }
       .card-title{ font-size:14px; }
     }
 
-    /* ✅ PC 웹메일(지메일 등)에서만: 바깥 배경 + 컨테이너 테두리 */
     @media only screen and (min-width: 1024px){
       body{ background:#f5f7fb; }
       .container{
@@ -175,7 +124,6 @@
 </head>
 
 <body>
-  <!-- ✅ Outlook(PC) 전용: 바깥 배경 + 카드 테두리 적용 -->
   <!--[if mso]>
   <table role="presentation" width="100%" align="center" cellpadding="0" cellspacing="0" border="0" style="background:#f5f7fb;">
     <tr>
@@ -187,7 +135,6 @@
 
   <div class="container">
 
-    <!-- 헤더 -->
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:14px;">
       <tr>
         <td align="left" valign="middle" style="padding:0;">
@@ -198,26 +145,17 @@
             {{ today_date }}
           </div>
         </td>
-
         <td align="right" valign="middle" style="width:80px; padding:0; font-size:0; line-height:0;">
-          <img
-            src="cid:acuvue_logo"
-            alt="ACUVUE Logo"
-            width="64"
-            height="64"
-            style="display:block;border-radius:20px;"
-          />
+          <img src="cid:acuvue_logo" alt="ACUVUE Logo" width="64" height="64" style="display:block;border-radius:20px;" />
         </td>
       </tr>
     </table>
 
-    <!-- 어제 기사 AI 브리핑 -->
     <div class="summary">
       <strong>[어제 기사 AI 브리핑]</strong><br />
       {{ yesterday_summary }}
     </div>
 
-    <!-- ACUVUE 기사 -->
     <h2>🔷 ACUVUE 기사</h2>
 
     {% if acuvue_articles %}
@@ -244,7 +182,37 @@
         {{ title }}
       </div>
 
-      /
+      <table class="news-table">
+        <colgroup>
+          <col width="25%">
+          <col width="20%">
+          <col width="40%">
+          <col width="15%">
+        </colgroup>
+
+        <tr>
+          <th>제목</th>
+          <th>언론사</th>
+          <th>요약</th>
+          <th class="col-link">링크</th>
+        </tr>
+
+        {% if items|length == 0 %}
+        <!-- ✅ colspan 사용하지 않고 4칸 유지: 모든 카테고리에서 컬럼 위치 동일 -->
+        <tr>
+          <td style="color:#777;">수집된 기사가 없습니다.</td>
+          <td></td>
+          <td></td>
+          <td class="col-link"></td>
+        </tr>
+        {% else %}
+          {% for a in items %}
+          <tr>
+            <td>{{ a.title }}</td>
+            <td>{{ a.source }}</td>
+            <td>{{ a.summary }}</td>
+            <td class="col-link"><a href="{{ a.link }}" target="_blank">보기</a></td>
+          </tr>
           {% endfor %}
         {% endif %}
       </table>
