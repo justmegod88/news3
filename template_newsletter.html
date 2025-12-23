@@ -98,6 +98,37 @@
       border-bottom:1px solid #dde3f5;
       text-align:left;
       font-weight:700;
+<table class="news-table">
+        <colgroup>
+          <col width="25%">
+          <col width="20%">
+          <col width="40%">
+          <col width="15%">
+        </colgroup>
+
+        <tr>
+          <th>제목</th>
+          <th>언론사</th>
+          <th>요약</th>
+          <th>링크</th>
+        </tr>
+
+        {% if items|length == 0 %}
+        <!-- ✅ 기사 0건이어도 테이블 형태/배열 유지 -->
+        <tr>
+          <td colspan="4" style="color:#777; padding:12px 8px;">
+            수집된 기사가 없습니다.
+          </td>
+        </tr>
+        {% else %}
+          {% for a in items %}
+          <tr>
+            <td>{{ a.title }}</td>
+            <td>{{ a.source }}</td>
+            <td>{{ a.summary }}</td>
+            <td><a href="{{ a.link }}" target="_blank">보기</a></td>
+          </tr>
+      
 
       /* ✅ 테이블 헤더 상하 중앙 느낌 */
       vertical-align:middle;
@@ -213,36 +244,7 @@
         {{ title }}
       </div>
 
-      <table class="news-table">
-        <colgroup>
-          <col width="25%">
-          <col width="20%">
-          <col width="40%">
-          <col width="15%">
-        </colgroup>
-
-        <tr>
-          <th>제목</th>
-          <th>언론사</th>
-          <th>요약</th>
-          <th>링크</th>
-        </tr>
-
-        {% if items|length == 0 %}
-        <!-- ✅ 기사 0건이어도 테이블 형태/배열 유지 -->
-        <tr>
-          <td colspan="4" style="color:#777; padding:12px 8px;">
-            수집된 기사가 없습니다.
-          </td>
-        </tr>
-        {% else %}
-          {% for a in items %}
-          <tr>
-            <td>{{ a.title }}</td>
-            <td>{{ a.source }}</td>
-            <td>{{ a.summary }}</td>
-            <td><a href="{{ a.link }}" target="_blank">보기</a></td>
-          </tr>
+      /
           {% endfor %}
         {% endif %}
       </table>
