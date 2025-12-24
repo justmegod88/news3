@@ -61,7 +61,6 @@ def _similarity(a: str, b: str) -> float:
 #     - 3순위: 종합/기타
 # =========================
 INDUSTRY_SOURCES = {
-    # 업계/전문지(예시) — 여기 네 뉴스레터 기준으로 계속 추가하면 됨
     "안경신문",
     "옵티컬저널",
     "옵티칼저널",
@@ -69,12 +68,11 @@ INDUSTRY_SOURCES = {
     "아이케어뉴스",
     "메디칼업저버",
     "의학신문",
-    "헬스조선",  # 필요 시
+    "헬스조선",      # 필요 시
     "바이오타임즈",  # 필요 시
 }
 
 TIER2_SOURCES = {
-    # 통신사/대형
     "연합뉴스",
     "뉴시스",
     "YTN",
@@ -91,14 +89,13 @@ TIER2_SOURCES = {
 
 def _source_priority(source: str) -> int:
     s = (source or "").strip()
-
     if s in INDUSTRY_SOURCES:
         return 1
     if s in TIER2_SOURCES:
         return 2
     if s:
         return 3
-    return 99  # source 비어있으면 가장 뒤
+    return 99
 
 
 def _pick_representative(group):
@@ -121,12 +118,34 @@ def _pick_representative(group):
 # ✅ (C) 중복 제거 + “외 n개 매체”용 묶기
 #     규칙:
 #       - (정규화 URL + 정규화 제목) 완전 동일 → 중복
-#       - summary 유사도 >= 0.80 → 중복
+#       - summary/title 유사도 >= threshold → 중복 후보
+#       - ✅ 단, 핵심 엔티티(업계/캠페인 단어) 1개 이상 공유 시에만 “중복” 확정 (오탐 방지)
 # =========================
-def dedupe_and_group_articles(articles, threshold: float = 0.80):
+CORE_ENTITIES = [
+    # 보도자료/캠페인 류 중복을 안전하게 묶기 위한 핵심 단어들
+    "다비치안경",
+    "무료",
+    "복지관",
+    "주민",
+    "눈 건강",
+    "우리 동네",
+    "사회공헌",
+    "지원",
+    "나눔",
+]
+
+def _share_core_entity(a: str, b: str) -> bool:
+    a = _normalize_text(a)
+    b = _normalize_text(b)
+    return any(e in a and e in b for e in CORE_ENTITIES)
+
+
+def dedupe_and_group_articles(articles, threshold: float = 0.75):
     """
     반환: 대표 기사 리스트
     대표 기사에는 a.duplicates = [{source, link, title}, ...] 가 생김
+
+    threshold 기본값: 0.75 (요청 반영)
     """
     # 1) URL+제목 완전 동일 기준으로 1차 그룹핑
     exact_map = {}
@@ -144,7 +163,6 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
     merged_groups = []
 
     for grp in stage1_groups:
-        # 그룹의 대표 임시(첫번째)로 비교 텍스트 준비
         base = grp[0]
         base_title = getattr(base, "title", "") or ""
         base_summary = getattr(base, "summary", "") or ""
@@ -161,10 +179,15 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
             # summary가 둘 다 있으면 summary로, 아니면 title 유사도로 보조
             if base_summary and ex_summary:
                 sim = _similarity(base_summary, ex_summary)
+                text_a = base_summary
+                text_b = ex_summary
             else:
                 sim = _similarity(base_title, ex_title)
+                text_a = base_title
+                text_b = ex_title
 
-            if sim >= threshold:
+            # ✅ 핵심: 유사도 + 핵심 엔티티 공유일 때만 병합(오탐 방지)
+            if sim >= threshold and _share_core_entity(text_a, text_b):
                 existing_grp.extend(grp)
                 merged = True
                 break
@@ -179,7 +202,6 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
     for grp in merged_groups:
         rep = _pick_representative(grp)
 
-        # rep.duplicates = rep 제외한 나머지
         dups = []
         for a in grp:
             if a is rep:
@@ -190,7 +212,6 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
                 "title": getattr(a, "title", "") or "",
             })
 
-        # rep에 속성 부여(동적)
         setattr(rep, "duplicates", dups)
         representatives.append(rep)
 
@@ -199,8 +220,6 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
 
 # =========================
 # ✅ (D) 카테고리 간 중복 제거
-#     - 대표 기사만 남기고(이미 대표만 존재),
-#       우선순위대로 하나의 카테고리에만 남김
 # =========================
 def remove_cross_category_duplicates(*category_lists):
     """
@@ -266,6 +285,7 @@ def build_yesterday_summary_3to4(
         "전반적으로 시장 및 경쟁 환경의 변화가 향후 전략 수립 시 참고할 만한 흐름으로 판단됩니다."
     )
 
+    # 너가 “3~4문장”을 원했지만 현재 템플릿 톤상 3문장으로 깔끔히 유지
     return " ".join(sentences[:3])
 
 
@@ -292,9 +312,10 @@ def main():
     articles = [a for a in articles if not should_exclude_article(a.title, a.summary)]
 
     # ✅ 6) 중복 제거(규칙 적용) + “외 n개 매체”용 묶기
-    #    - URL/제목 동일 OR summary 유사도 0.85 이상
+    #    - ✅ 요청 반영: 유사도 threshold=0.70
+    #    - ✅ 오탐 방지: 핵심 엔티티 공유 조건 충족 시에만 병합
     #    - 대표 언론사: 업계지 1순위
-    articles = dedupe_and_group_articles(articles, threshold=0.85)
+    articles = dedupe_and_group_articles(articles, threshold=0.70)
 
     # 7) 분류
     categorized = categorize_articles(articles)
