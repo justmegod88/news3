@@ -3,6 +3,8 @@ name: Daily News Newsletter
 on:
   schedule:
     - cron: "0 1 * * *"  # 매일 UTC 1:00 = KST 10:00
+
+    # schedule refresh
     
   workflow_dispatch:
 
