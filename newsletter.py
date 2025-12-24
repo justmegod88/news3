@@ -309,7 +309,7 @@ def main():
     )
 
     # 9) 어제 기사 AI 브리핑
-    summary = build_yesterday_summary_2to3(
+    summary = build_yesterday_summary_3to4(
         acuvue_list,
         company_list,
         product_list,
