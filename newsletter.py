@@ -140,12 +140,12 @@ def _share_core_entity(a: str, b: str) -> bool:
     return any(e in a and e in b for e in CORE_ENTITIES)
 
 
-def dedupe_and_group_articles(articles, threshold: float = 0.75):
+def dedupe_and_group_articles(articles, threshold: float = 0.70):
     """
     반환: 대표 기사 리스트
     대표 기사에는 a.duplicates = [{source, link, title}, ...] 가 생김
 
-    threshold 기본값: 0.75 (요청 반영)
+    threshold 기본값: 0.70 (요청 반영)
     """
     # 1) URL+제목 완전 동일 기준으로 1차 그룹핑
     exact_map = {}
