@@ -121,9 +121,9 @@ def _pick_representative(group):
 # ✅ (C) 중복 제거 + “외 n개 매체”용 묶기
 #     규칙:
 #       - (정규화 URL + 정규화 제목) 완전 동일 → 중복
-#       - summary 유사도 >= 0.85 → 중복
+#       - summary 유사도 >= 0.80 → 중복
 # =========================
-def dedupe_and_group_articles(articles, threshold: float = 0.85):
+def dedupe_and_group_articles(articles, threshold: float = 0.80):
     """
     반환: 대표 기사 리스트
     대표 기사에는 a.duplicates = [{source, link, title}, ...] 가 생김
@@ -228,9 +228,9 @@ def remove_cross_category_duplicates(*category_lists):
 
 
 # =========================
-# ✅ (E) 2~3문장 고정 AI 브리핑
+# ✅ (E) 3~4문장 고정 AI 브리핑
 # =========================
-def build_yesterday_summary_2to3(
+def build_yesterday_summary_3to4(
     acuvue_articles,
     company_articles,
     product_articles,
