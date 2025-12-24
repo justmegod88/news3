@@ -1,6 +1,6 @@
 import datetime as dt
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Optional, Tuple
 from urllib.parse import quote_plus, urlparse, parse_qs
 import re
 import html
@@ -36,7 +36,7 @@ class Article:
 
 
 # =========================
-# Exclusion rules (최소한)
+# Exclusion rules
 # =========================
 FINANCE_KEYWORDS = [
     "주가", "주식", "증시", "투자", "재무", "실적",
@@ -45,6 +45,24 @@ FINANCE_KEYWORDS = [
     "목표주가", "시가총액", "ir", "주주",
 ]
 
+# 연예 / 예능 / 오락
+ENTERTAINMENT_HINTS = [
+    "연예", "연예인", "예능", "방송", "드라마", "영화",
+    "배우", "아이돌", "가수", "뮤지컬",
+    "유튜버", "크리에이터",
+    "화제", "논란", "근황",
+    "팬미팅", "콘서트",
+]
+
+# 인사 / 승진
+PERSONNEL_HINTS = [
+    "인사", "임원 인사", "승진", "선임", "발탁",
+    "대표이사", "사장", "부사장", "전무", "상무",
+    "ceo", "cfo", "cto", "coo",
+    "취임", "영입",
+]
+
+# 가수 다비치
 DAVICHI_SINGER_NAMES = ["강민경", "이해리"]
 DAVICHI_SINGER_HINTS = [
     "가수", "음원", "신곡", "컴백", "앨범",
@@ -52,17 +70,26 @@ DAVICHI_SINGER_HINTS = [
     "차트", "유튜브", "방송", "예능", "ost", "연예",
 ]
 
+# 얼굴/뷰티 노안
 FACE_AGING_HINTS = [
     "얼굴", "피부", "주름", "리프팅", "안티에이징",
     "동안", "보톡스", "필러", "시술", "화장품", "뷰티",
 ]
 
-OPTICAL_HINTS = [
-    "안경", "렌즈", "콘택트", "콘택트렌즈",
-    "시력", "안과", "검안", "노안 렌즈", "다초점",
+# 광학/렌즈 업계 화이트리스트
+INDUSTRY_WHITELIST = [
+    "안경", "안경원",
+    "렌즈", "콘택트", "콘택트렌즈",
+    "안과", "검안", "시력",
+    "아큐브", "acuvue",
+    "존슨앤드존슨", "알콘", "쿠퍼비전", "바슈롬",
+    "인터로조", "클라렌",
 ]
 
 
+# =========================
+# Utils
+# =========================
 def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "")).strip().lower()
 
@@ -70,29 +97,39 @@ def _normalize(text: str) -> str:
 def should_exclude_article(title: str, summary: str = "") -> bool:
     full = _normalize(title + " " + summary)
 
-    # 투자/재무
+    # 1) 투자/재무
     if any(k in full for k in FINANCE_KEYWORDS):
         return True
 
-    # 얼굴 노안 제외 (광학 문맥은 살림)
+    # 2) 얼굴 중심 노안 (광학 문맥 없으면 제거)
     if "노안" in full and any(k in full for k in FACE_AGING_HINTS):
-        if not any(k in full for k in OPTICAL_HINTS):
+        if not any(k in full for k in INDUSTRY_WHITELIST):
             return True
 
-    # 가수 다비치 / 멤버 제외
+    # 3) 가수 다비치 / 멤버
     if any(n in full for n in DAVICHI_SINGER_NAMES):
         return True
 
     if "다비치" in full or "davichi" in full:
         if any(h in full for h in DAVICHI_SINGER_HINTS):
-            if not any(o in full for o in OPTICAL_HINTS):
+            if not any(o in full for o in INDUSTRY_WHITELIST):
                 return True
+
+    # 4) 연예 / 예능 / 오락
+    if any(h in full for h in ENTERTAINMENT_HINTS):
+        if not any(i in full for i in INDUSTRY_WHITELIST):
+            return True
+
+    # 5) 타 업계 인사 / 승진
+    if any(h in full for h in PERSONNEL_HINTS):
+        if not any(i in full for i in INDUSTRY_WHITELIST):
+            return True
 
     return False
 
 
 # =========================
-# Config
+# Config / Timezone
 # =========================
 def load_config(path="config.yaml"):
     with open(path, "r", encoding="utf-8") as f:
@@ -151,7 +188,7 @@ def resolve_final_url(link: str) -> str:
 
 
 # =========================
-# ✅ 중복 제거 (URL + 제목)
+# Deduplication (URL + Title)
 # =========================
 def _normalize_url(url: str) -> str:
     if not url:
@@ -164,19 +201,14 @@ def _normalize_url(url: str) -> str:
 
 def _normalize_title(title: str) -> str:
     t = (title or "").lower().strip()
-    t = re.sub(r"\[[^\]]+\]", " ", t)      # [단독]
-    t = re.sub(r"\([^)]*\)", " ", t)       # (종합)
+    t = re.sub(r"\[[^\]]+\]", " ", t)
+    t = re.sub(r"\([^)]*\)", " ", t)
     t = re.sub(r"[^\w가-힣]+", " ", t)
     t = re.sub(r"\s+", " ", t).strip()
     return t
 
 
 def deduplicate_articles(articles: List[Article]) -> List[Article]:
-    """
-    중복 기준:
-    1) URL 동일 → 제거
-    2) 제목 동일(정규화) → 제거
-    """
     seen_urls = set()
     seen_titles = set()
     out = []
@@ -184,18 +216,18 @@ def deduplicate_articles(articles: List[Article]) -> List[Article]:
     for a in articles:
         a.link = resolve_final_url(a.link)
 
-        url_key = _normalize_url(a.link)
-        title_key = _normalize_title(a.title)
+        u = _normalize_url(a.link)
+        t = _normalize_title(a.title)
 
-        if url_key and url_key in seen_urls:
+        if u and u in seen_urls:
             continue
-        if title_key and title_key in seen_titles:
+        if t and t in seen_titles:
             continue
 
-        if url_key:
-            seen_urls.add(url_key)
-        if title_key:
-            seen_titles.add(title_key)
+        if u:
+            seen_urls.add(u)
+        if t:
+            seen_titles.add(t)
 
         out.append(a)
 
@@ -217,12 +249,11 @@ def fetch_from_google_news(query, source_name, tz):
             tz,
         )
 
-        press1 = ""
-        if getattr(e, "source", None):
-            press1 = getattr(e.source, "title", "") or ""
-
-        source = press1 or press2 or source_name
-        link = getattr(e, "link", "")
+        source = (
+            getattr(getattr(e, "source", None), "title", "")
+            or press2
+            or source_name
+        )
 
         if should_exclude_article(title, summary):
             continue
@@ -230,7 +261,7 @@ def fetch_from_google_news(query, source_name, tz):
         articles.append(
             Article(
                 title=title,
-                link=link,
+                link=getattr(e, "link", ""),
                 published=published,
                 source=source,
                 summary=summary,
