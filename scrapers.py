@@ -67,7 +67,7 @@ DAVICHI_SINGER_NAMES = ["강민경", "이해리"]
 DAVICHI_SINGER_HINTS = [
     "가수", "음원", "신곡", "컴백", "앨범",
     "콘서트", "공연", "뮤직비디오","강민경","이해리","개그","듀오",
-    "차트", "유튜브", "방송", "예능", "ost", "연예",
+    "차트", "유튜브", "방송", "예능", "ost", "연예","무대","히든싱어","가요","음악",
 ]
 
 # 얼굴/뷰티 노안
@@ -124,6 +124,10 @@ def should_exclude_article(title: str, summary: str = "") -> bool:
     if any(h in full for h in PERSONNEL_HINTS):
         if not any(i in full for i in INDUSTRY_WHITELIST):
             return True
+
+      # 6) 업계 무관 기사 기본 제외
+    if not any(i in full for i in INDUSTRY_WHITELIST):
+        return True
 
     return False
 
