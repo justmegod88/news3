@@ -133,25 +133,22 @@ def should_exclude_article(title: str, summary: str = "") -> bool:
         if not any(i in full for i in INDUSTRY_WHITELIST):
             return True
 
-   # 6) 포털 광고 / 카드형 요약 제거
-   # summary가 낚시 문구이고, 업계 키워드가 없으면 제거
-   if summary:
-       if any(h in summary for h in AD_SNIPPET_HINTS):
-           if not any(i in full for i in INDUSTRY_WHITELIST):
-               return True
-               
-   # 7) 요약이 너무 짧은 카드형 문구 제거
-   if summary and len(summary) < 40:
-       if not any(i in full for i in INDUSTRY_WHITELIST):
-           return True
-    
-
-     # 7) 업계 무관 기사 기본 제외    
-    if not any(i in full for i in INDUSTRY_WHITELIST):       
-        return True
-
-
+    # 6) 포털 광고 / 카드형 요약 제거
+       # summary가 낚시 문구이고, 업계 키워드가 없으면 제거
+       if summary:
+           if any(h in summary for h in AD_SNIPPET_HINTS):
+               if not any(i in full for i in INDUSTRY_WHITELIST):
+                   return True
+    # 7) 요약이 너무 짧은 카드형 문구 제거
+    if summary and len(summary) < 40:
+        if not any(i in full for i in INDUSTRY_WHITELIST):
+            return True
+    # 8) 업계 무관 기사 기본 제외 (원하면 사용)
+    # if not any(i in full for i in INDUSTRY_WHITELIST):
+    #    return True
+        
     return False
+ 
 
 
 # =========================
