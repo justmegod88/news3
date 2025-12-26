@@ -125,9 +125,6 @@ def should_exclude_article(title: str, summary: str = "") -> bool:
         if not any(i in full for i in INDUSTRY_WHITELIST):
             return True
 
-      # 6) 업계 무관 기사 기본 제외
-    if not any(i in full for i in INDUSTRY_WHITELIST):
-        return True
 
     return False
 
