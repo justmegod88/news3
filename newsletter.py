@@ -247,7 +247,7 @@ def remove_cross_category_duplicates(*category_lists):
 
 
 # =========================
-# ✅ (E) 3~4문장 고정 AI 브리핑
+# ✅ (E) 3~4문장 고정 AI 브리핑 (기사 0건이면 요약 없음 처리)
 # =========================
 def build_yesterday_summary_3to4(
     acuvue_articles,
@@ -256,6 +256,18 @@ def build_yesterday_summary_3to4(
     trend_articles,
     eye_health_articles,
 ):
+    total = (
+        len(acuvue_articles)
+        + len(company_articles)
+        + len(product_articles)
+        + len(trend_articles)
+        + len(eye_health_articles)
+    )
+
+    # ✅ 기사 0건이면 요약도 “없음”
+    if total == 0:
+        return "어제는 수집된 기사가 없어 주요 이슈를 요약할 내용이 없습니다."
+
     sentences = []
 
     if acuvue_articles:
@@ -276,16 +288,18 @@ def build_yesterday_summary_3to4(
     if eye_health_articles:
         category_points.append("눈 건강 및 캠페인 관련 움직임")
 
+    # ✅ 실제로 존재하는 카테고리만 언급
     if category_points:
         sentences.append(
             "이와 함께 " + ", ".join(category_points) + " 관련 기사들이 확인되었습니다."
         )
 
-    sentences.append(
-        "전반적으로 시장 및 경쟁 환경의 변화가 향후 전략 수립 시 참고할 만한 흐름으로 판단됩니다."
-    )
+    # ✅ 기사 수가 충분할 때만 총평 문장 추가
+    if total >= 3:
+        sentences.append(
+            "전반적으로 시장 및 경쟁 환경의 변화가 향후 전략 수립 시 참고할 만한 흐름으로 판단됩니다."
+        )
 
-    # 너가 “3~4문장”을 원했지만 현재 템플릿 톤상 3문장으로 깔끔히 유지
     return " ".join(sentences[:3])
 
 
