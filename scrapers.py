@@ -67,7 +67,7 @@ DAVICHI_SINGER_NAMES = ["강민경", "이해리"]
 DAVICHI_SINGER_HINTS = [
     "가수", "음원", "신곡", "컴백", "앨범",
     "콘서트", "공연", "뮤직비디오","강민경","이해리","개그","듀오",
-    "차트", "유튜브", "방송", "예능", "ost", "연예","무대","히든싱어","가요","음악",
+    "차트", "유튜브", "방송", "예능", "ost", "연예","무대","히든싱어","가요","음악","시상식", "프로그램", 
 ]
 
 # 얼굴/뷰티 노안
@@ -78,12 +78,12 @@ FACE_AGING_HINTS = [
 
 # 광학/렌즈 업계 화이트리스트
 INDUSTRY_WHITELIST = [
-    "안경", "안경원",
-    "렌즈", "콘택트", "콘택트렌즈",
-    "안과", "검안", "시력",
+    "안경", "안경원","안경사", "호야", "에실로","자이스", "노안 렌즈", "노안 교정", 
+    "렌즈", "콘택트", "콘택트렌즈","오렌즈", "하피크리스틴", "다비치안경", "다비치 체인",
+    "안과", "검안", "시력","콘택트 렌즈", "contact lens",
     "아큐브", "acuvue",
     "존슨앤드존슨", "알콘", "쿠퍼비전", "바슈롬",
-    "인터로조", "클라렌",
+    "인터로조", "클라렌", 
 ]
 
 
@@ -124,6 +124,10 @@ def should_exclude_article(title: str, summary: str = "") -> bool:
     if any(h in full for h in PERSONNEL_HINTS):
         if not any(i in full for i in INDUSTRY_WHITELIST):
             return True
+
+     # 6) 업계 무관 기사 기본 제외    
+    if not any(i in full for i in INDUSTRY_WHITELIST):       
+        return True
 
 
     return False
