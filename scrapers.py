@@ -101,26 +101,24 @@ INDUSTRY_WHITELIST = [
 def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "")).strip().lower()
 
-
 def should_exclude_article(title: str, summary: str = "") -> bool:
-    full = _normalize(title + " " + summary)
 
-    # 1) 투자/재무
+    full = _normalize(title + " " + summary)
+    # 1) 투자 / 재무
     if any(k in full for k in FINANCE_KEYWORDS):
         return True
 
-    # 2) 얼굴 중심 노안 (광학 문맥 없으면 제거)
+    # 2) 얼굴/뷰티 노안
     if "노안" in full and any(k in full for k in FACE_AGING_HINTS):
-        if not any(k in full for k in INDUSTRY_WHITELIST):
+        if not any(i in full for i in INDUSTRY_WHITELIST):
             return True
 
-    # 3) 가수 다비치 / 멤버
+    # 3) 가수 다비치
     if any(n in full for n in DAVICHI_SINGER_NAMES):
         return True
-
     if "다비치" in full or "davichi" in full:
         if any(h in full for h in DAVICHI_SINGER_HINTS):
-            if not any(o in full for o in INDUSTRY_WHITELIST):
+            if not any(i in full for i in INDUSTRY_WHITELIST):
                 return True
 
     # 4) 연예 / 예능 / 오락
@@ -134,22 +132,22 @@ def should_exclude_article(title: str, summary: str = "") -> bool:
             return True
 
     # 6) 포털 광고 / 카드형 요약 제거
-       # summary가 낚시 문구이고, 업계 키워드가 없으면 제거
-       if summary:
-           if any(h in summary for h in AD_SNIPPET_HINTS):
-               if not any(i in full for i in INDUSTRY_WHITELIST):
-                   return True
+    if summary:
+        if any(h in summary for h in AD_SNIPPET_HINTS):
+            if not any(i in full for i in INDUSTRY_WHITELIST):
+                return True
+
     # 7) 요약이 너무 짧은 카드형 문구 제거
     if summary and len(summary) < 40:
         if not any(i in full for i in INDUSTRY_WHITELIST):
             return True
-    # 8) 업계 무관 기사 기본 제외 (원하면 사용)
+
+    # 8) (옵션 B) 업계 무관 기사 기본 제외 ❌ 비활성
     # if not any(i in full for i in INDUSTRY_WHITELIST):
-    #    return True
-        
+    #     return True
+
     return False
  
-
 
 # =========================
 # Config / Timezone
