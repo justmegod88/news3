@@ -87,6 +87,7 @@ TIER2_SOURCES = {
     "경향신문",
 }
 
+
 def _source_priority(source: str) -> int:
     s = (source or "").strip()
     if s in INDUSTRY_SOURCES:
@@ -122,7 +123,6 @@ def _pick_representative(group):
 #       - ✅ 단, 핵심 엔티티(업계/캠페인 단어) 1개 이상 공유 시에만 “중복” 확정 (오탐 방지)
 # =========================
 CORE_ENTITIES = [
-    # 보도자료/캠페인 류 중복을 안전하게 묶기 위한 핵심 단어들
     "다비치안경",
     "무료",
     "복지관",
@@ -133,6 +133,7 @@ CORE_ENTITIES = [
     "지원",
     "나눔",
 ]
+
 
 def _share_core_entity(a: str, b: str) -> bool:
     a = _normalize_text(a)
@@ -247,7 +248,9 @@ def remove_cross_category_duplicates(*category_lists):
 
 
 # =========================
-# ✅ (E) 3~4문장 고정 AI 브리핑 (기사 0건이면 요약 없음 처리)
+# ✅ (E) 3~4문장 고정 AI 브리핑
+#     - 기사 0건이면 요약 없음
+#     - 카테고리 1개면 '이와 함께' 제거 + 단수('기사')
 # =========================
 def build_yesterday_summary_3to4(
     acuvue_articles,
@@ -264,12 +267,12 @@ def build_yesterday_summary_3to4(
         + len(eye_health_articles)
     )
 
-    # ✅ 기사 0건이면 요약도 “없음”
     if total == 0:
         return "어제는 수집된 기사가 없어 주요 이슈를 요약할 내용이 없습니다."
 
     sentences = []
 
+    # 1) ACUVUE 문장(있을 때만)
     if acuvue_articles:
         titles = [a.title for a in acuvue_articles[:2]]
         sentences.append(
@@ -278,6 +281,7 @@ def build_yesterday_summary_3to4(
             + " 등이 주요하게 다뤄졌습니다."
         )
 
+    # 2) 카테고리 문장(실제 존재하는 것만)
     category_points = []
     if company_articles:
         category_points.append("경쟁사 및 업체별 활동")
@@ -288,13 +292,17 @@ def build_yesterday_summary_3to4(
     if eye_health_articles:
         category_points.append("눈 건강 및 캠페인 관련 움직임")
 
-    # ✅ 실제로 존재하는 카테고리만 언급
     if category_points:
-        sentences.append(
-            "이와 함께 " + ", ".join(category_points) + " 관련 기사들이 확인되었습니다."
-        )
+        # ✅ 앞 문장이 있을 때만 '이와 함께' 사용
+        prefix = "이와 함께 " if sentences else ""
 
-    # ✅ 기사 수가 충분할 때만 총평 문장 추가
+        # ✅ 카테고리 1개면 단수 표현
+        if len(category_points) == 1:
+            sentences.append(f"{prefix}{category_points[0]} 관련 기사가 확인되었습니다.")
+        else:
+            sentences.append(f"{prefix}{', '.join(category_points)} 관련 기사들이 확인되었습니다.")
+
+    # 3) 총평 문장(기사 충분할 때만)
     if total >= 3:
         sentences.append(
             "전반적으로 시장 및 경쟁 환경의 변화가 향후 전략 수립 시 참고할 만한 흐름으로 판단됩니다."
@@ -310,31 +318,28 @@ def main():
     # 1) 수집
     articles = fetch_all_articles(cfg)
 
-    # 2) 제외 규칙 1차(투자/재무/실적 + 가수 다비치/강민경/이해리 + 얼굴노안 등)
+    # 2) 제외 규칙 1차
     articles = filter_out_finance_articles(articles)
 
     # 3) 날짜 필터: 어제 기사만
     articles = filter_yesterday_articles(articles, cfg)
 
-    # 4) 1차 중복 제거(빠른 제거: URL+제목)  ← scrapers.py
+    # 4) 1차 중복 제거(URL+제목)  ← scrapers.py
     articles = deduplicate_articles(articles)
 
     # 5) 기사 요약(summary 채우기)
     refine_article_summaries(articles)
 
-    # ✅ (선택) 최종 안전 필터: 요약 후에도 살아남는 케이스 차단
+    # ✅ 최종 안전 필터(요약 후에도 살아남는 케이스 차단)
     articles = [a for a in articles if not should_exclude_article(a.title, a.summary)]
 
-    # ✅ 6) 중복 제거(규칙 적용) + “외 n개 매체”용 묶기
-    #    - ✅ 요청 반영: 유사도 threshold=0.70
-    #    - ✅ 오탐 방지: 핵심 엔티티 공유 조건 충족 시에만 병합
-    #    - 대표 언론사: 업계지 1순위
+    # ✅ 6) 중복 제거 + “외 n개 매체” 묶기
     articles = dedupe_and_group_articles(articles, threshold=0.70)
 
     # 7) 분류
     categorized = categorize_articles(articles)
 
-    # 8) 카테고리 간 중복 제거 (우선순위대로 하나만 남김)
+    # 8) 카테고리 간 중복 제거
     acuvue_list, company_list, product_list, trend_list, eye_health_list = remove_cross_category_duplicates(
         categorized.acuvue,
         categorized.company,
