@@ -17,6 +17,9 @@ try:
 except Exception:
     ZoneInfo = None
 
+# ✅ 추가
+from date_filter import is_exact_yesterday
+
 
 GOOGLE_NEWS_RSS_BASE = "https://news.google.com/rss/search"
 
@@ -33,7 +36,7 @@ class Article:
     summary: str
     image_url: Optional[str] = None
     is_naver: bool = False
-
+    text: str = ""          # ✅ 실제 기사 전체 텍스트 (날짜 판별용)
 
 # =========================
 # Exclusion rules
