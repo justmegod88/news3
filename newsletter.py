@@ -9,15 +9,14 @@ from jinja2 import Environment, FileSystemLoader
 from scrapers import (
     load_config,
     fetch_all_articles,
+    filter_yesterday_articles,
+    filter_out_finance_articles,
     deduplicate_articles,        # (scrapers.py의 URL+제목 dedup: 1차)
     should_exclude_article,      # ✅ 최종 안전 필터용
 )
 from categorizer import categorize_articles
 from summarizer import refine_article_summaries
 from mailer import send_email_html
-
-# ✅ 텍스트 기반 “어제(연/월/일 완전일치)” 판정
-from date_filter import is_exact_yesterday
 
 
 # =========================
@@ -57,6 +56,9 @@ def _similarity(a: str, b: str) -> float:
 
 # =========================
 # ✅ (B) 대표 기사(언론사) 선택 규칙
+#     - 1순위: 업계지
+#     - 2순위: 통신사/대형
+#     - 3순위: 종합/기타
 # =========================
 INDUSTRY_SOURCES = {
     "안경신문",
@@ -66,8 +68,8 @@ INDUSTRY_SOURCES = {
     "아이케어뉴스",
     "메디칼업저버",
     "의학신문",
-    "헬스조선",
-    "바이오타임즈",
+    "헬스조선",      # 필요 시
+    "바이오타임즈",  # 필요 시
 }
 
 TIER2_SOURCES = {
@@ -115,6 +117,10 @@ def _pick_representative(group):
 
 # =========================
 # ✅ (C) 중복 제거 + “외 n개 매체”용 묶기
+#     규칙:
+#       - (정규화 URL + 정규화 제목) 완전 동일 → 중복
+#       - summary/title 유사도 >= threshold → 중복 후보
+#       - ✅ 단, 핵심 엔티티(업계/캠페인 단어) 1개 이상 공유 시에만 “중복” 확정 (오탐 방지)
 # =========================
 CORE_ENTITIES = [
     "다비치안경",
@@ -153,6 +159,7 @@ def dedupe_and_group_articles(articles, threshold: float = 0.70):
     stage1_groups = list(exact_map.values())
 
     # 2) 요약 유사도 기반으로 그룹 병합
+    #    - 전체 n^2 방지: 제목 키 prefix 버킷으로 후보만 비교
     buckets = {}  # bucket_key -> list[group]
     merged_groups = []
 
@@ -180,7 +187,7 @@ def dedupe_and_group_articles(articles, threshold: float = 0.70):
                 text_a = base_title
                 text_b = ex_title
 
-            # ✅ 유사도 + 핵심 엔티티 공유일 때만 병합
+            # ✅ 핵심: 유사도 + 핵심 엔티티 공유일 때만 병합(오탐 방지)
             if sim >= threshold and _share_core_entity(text_a, text_b):
                 existing_grp.extend(grp)
                 merged = True
@@ -242,6 +249,8 @@ def remove_cross_category_duplicates(*category_lists):
 
 # =========================
 # ✅ (E) 3~4문장 고정 AI 브리핑
+#     - 기사 0건이면 요약 없음
+#     - 카테고리 1개면 '이와 함께' 제거 + 단수('기사')
 # =========================
 def build_yesterday_summary_3to4(
     acuvue_articles,
@@ -284,7 +293,10 @@ def build_yesterday_summary_3to4(
         category_points.append("눈 건강 및 캠페인 관련 움직임")
 
     if category_points:
+        # ✅ 앞 문장이 있을 때만 '이와 함께' 사용
         prefix = "이와 함께 " if sentences else ""
+
+        # ✅ 카테고리 1개면 단수 표현
         if len(category_points) == 1:
             sentences.append(f"{prefix}{category_points[0]} 관련 기사가 확인되었습니다.")
         else:
@@ -306,25 +318,30 @@ def main():
     # 1) 수집
     articles = fetch_all_articles(cfg)
 
-    # ✅ 날짜 필터: '텍스트 기준 어제(연/월/일 완전 일치)'만 남김
-    articles = [a for a in articles if is_exact_yesterday(getattr(a, "text", ""))]
+    # 2) 제외 규칙 1차
+    articles = filter_out_finance_articles(articles)
 
-    # 2) 1차 중복 제거(URL+제목)  ← scrapers.py
+    # 3) 날짜 필터: 어제 기사만
+    # ✅ 지금 scrapers.py의 filter_yesterday_articles가
+    #    "텍스트 기반 어제(연/월/일 완전일치), 실패 시 제외"로 동작하도록 바뀐 상태여야 함
+    articles = filter_yesterday_articles(articles, cfg)
+
+    # 4) 1차 중복 제거(URL+제목)  ← scrapers.py
     articles = deduplicate_articles(articles)
 
-    # 3) 기사 요약(summary 채우기)
+    # 5) 기사 요약(summary 채우기)
     refine_article_summaries(articles)
 
     # ✅ 최종 안전 필터(요약 후에도 살아남는 케이스 차단)
     articles = [a for a in articles if not should_exclude_article(a.title, a.summary)]
 
-    # ✅ 4) 중복 제거 + “외 n개 매체” 묶기
+    # ✅ 6) 중복 제거 + “외 n개 매체” 묶기
     articles = dedupe_and_group_articles(articles, threshold=0.70)
 
-    # 5) 분류
+    # 7) 분류
     categorized = categorize_articles(articles)
 
-    # 6) 카테고리 간 중복 제거
+    # 8) 카테고리 간 중복 제거
     acuvue_list, company_list, product_list, trend_list, eye_health_list = remove_cross_category_duplicates(
         categorized.acuvue,
         categorized.company,
@@ -333,7 +350,7 @@ def main():
         categorized.eye_health,
     )
 
-    # 7) 어제 기사 AI 브리핑
+    # 9) 어제 기사 AI 브리핑
     summary = build_yesterday_summary_3to4(
         acuvue_list,
         company_list,
@@ -342,7 +359,7 @@ def main():
         eye_health_list,
     )
 
-    # 8) 템플릿 렌더링
+    # 10) 템플릿 렌더링
     env = Environment(loader=FileSystemLoader("."), autoescape=True)
     template = env.get_template("template_newsletter.html")
 
@@ -356,13 +373,13 @@ def main():
         eye_health_articles=eye_health_list,
     )
 
-    # 9) 메일 제목
+    # 11) 메일 제목
     email = cfg["email"]
     yesterday_str = (dt.datetime.now(tz).date() - dt.timedelta(days=1)).strftime("%Y-%m-%d")
     subject_prefix = email.get("subject_prefix", "[Daily News]")
     subject = f"{subject_prefix} 어제 기사 브리핑 - {yesterday_str}"
 
-    # 10) 발송
+    # 12) 발송
     send_email_html(
         subject=subject,
         html_body=html,
