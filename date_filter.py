@@ -58,4 +58,4 @@ def is_exact_yesterday(text: str) -> bool:
     if article_dt is None:
         return False  # ❗ 실패 시 무조건 제외
 
-    return article_dt.date() == yesterday*
+    return article_dt.date() == yesterday
