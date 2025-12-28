@@ -9,7 +9,7 @@ from jinja2 import Environment, FileSystemLoader
 from scrapers import (
     load_config,
     fetch_all_articles,
-    filter_yesterday_articles,
+    # ✅ filter_yesterday_articles 제거 (더 이상 사용 안 함)
     filter_out_finance_articles,
     deduplicate_articles,        # (scrapers.py의 URL+제목 dedup: 1차)
     should_exclude_article,      # ✅ 최종 안전 필터용
@@ -17,6 +17,9 @@ from scrapers import (
 from categorizer import categorize_articles
 from summarizer import refine_article_summaries
 from mailer import send_email_html
+
+# ✅ 텍스트 기반 “어제(연/월/일 완전일치)” 판정 (네가 만든 date_filter.py)
+from date_filter import is_exact_yesterday
 
 
 # =========================
@@ -117,10 +120,6 @@ def _pick_representative(group):
 
 # =========================
 # ✅ (C) 중복 제거 + “외 n개 매체”용 묶기
-#     규칙:
-#       - (정규화 URL + 정규화 제목) 완전 동일 → 중복
-#       - summary/title 유사도 >= threshold → 중복 후보
-#       - ✅ 단, 핵심 엔티티(업계/캠페인 단어) 1개 이상 공유 시에만 “중복” 확정 (오탐 방지)
 # =========================
 CORE_ENTITIES = [
     "다비치안경",
@@ -159,7 +158,6 @@ def dedupe_and_group_articles(articles, threshold: float = 0.70):
     stage1_groups = list(exact_map.values())
 
     # 2) 요약 유사도 기반으로 그룹 병합
-    #    - 전체 n^2 방지: 제목 키 prefix 버킷으로 후보만 비교
     buckets = {}  # bucket_key -> list[group]
     merged_groups = []
 
@@ -177,7 +175,6 @@ def dedupe_and_group_articles(articles, threshold: float = 0.70):
             ex_title = getattr(ex, "title", "") or ""
             ex_summary = getattr(ex, "summary", "") or ""
 
-            # summary가 둘 다 있으면 summary로, 아니면 title 유사도로 보조
             if base_summary and ex_summary:
                 sim = _similarity(base_summary, ex_summary)
                 text_a = base_summary
@@ -187,7 +184,6 @@ def dedupe_and_group_articles(articles, threshold: float = 0.70):
                 text_a = base_title
                 text_b = ex_title
 
-            # ✅ 핵심: 유사도 + 핵심 엔티티 공유일 때만 병합(오탐 방지)
             if sim >= threshold and _share_core_entity(text_a, text_b):
                 existing_grp.extend(grp)
                 merged = True
@@ -249,8 +245,6 @@ def remove_cross_category_duplicates(*category_lists):
 
 # =========================
 # ✅ (E) 3~4문장 고정 AI 브리핑
-#     - 기사 0건이면 요약 없음
-#     - 카테고리 1개면 '이와 함께' 제거 + 단수('기사')
 # =========================
 def build_yesterday_summary_3to4(
     acuvue_articles,
@@ -272,7 +266,6 @@ def build_yesterday_summary_3to4(
 
     sentences = []
 
-    # 1) ACUVUE 문장(있을 때만)
     if acuvue_articles:
         titles = [a.title for a in acuvue_articles[:2]]
         sentences.append(
@@ -281,7 +274,6 @@ def build_yesterday_summary_3to4(
             + " 등이 주요하게 다뤄졌습니다."
         )
 
-    # 2) 카테고리 문장(실제 존재하는 것만)
     category_points = []
     if company_articles:
         category_points.append("경쟁사 및 업체별 활동")
@@ -293,16 +285,12 @@ def build_yesterday_summary_3to4(
         category_points.append("눈 건강 및 캠페인 관련 움직임")
 
     if category_points:
-        # ✅ 앞 문장이 있을 때만 '이와 함께' 사용
         prefix = "이와 함께 " if sentences else ""
-
-        # ✅ 카테고리 1개면 단수 표현
         if len(category_points) == 1:
             sentences.append(f"{prefix}{category_points[0]} 관련 기사가 확인되었습니다.")
         else:
             sentences.append(f"{prefix}{', '.join(category_points)} 관련 기사들이 확인되었습니다.")
 
-    # 3) 총평 문장(기사 충분할 때만)
     if total >= 3:
         sentences.append(
             "전반적으로 시장 및 경쟁 환경의 변화가 향후 전략 수립 시 참고할 만한 흐름으로 판단됩니다."
@@ -315,25 +303,30 @@ def main():
     cfg = load_config()
     tz = ZoneInfo(cfg.get("timezone", "Asia/Seoul"))
 
-    # 1) 수집
+    # 1) 수집 (✅ scrapers에서 이미 텍스트 기반 어제 필터를 적용해도 되고,
+    #          혹시 적용이 누락된 경우를 대비해 여기서 한번 더 방어 가능)
     articles = fetch_all_articles(cfg)
+
+    # ✅ (선택) 2중 방어: 텍스트 기반 "어제"만 남기기
+    # scrapers에서 이미 걸렀다면 여기는 거의 변화 없지만, 누락/예외 대비.
+    articles = [a for a in articles if is_exact_yesterday(getattr(a, "text", ""))]
 
     # 2) 제외 규칙 1차
     articles = filter_out_finance_articles(articles)
 
-    # 3) 날짜 필터: 어제 기사만
-    articles = filter_yesterday_articles(articles, cfg)
+    # 3) (삭제) published 기반 날짜 필터는 사용 안 함
+    # articles = filter_yesterday_articles(articles, cfg)
 
-    # 4) 1차 중복 제거(URL+제목)  ← scrapers.py
+    # 4) 1차 중복 제거(URL+제목)
     articles = deduplicate_articles(articles)
 
     # 5) 기사 요약(summary 채우기)
     refine_article_summaries(articles)
 
-    # ✅ 최종 안전 필터(요약 후에도 살아남는 케이스 차단)
+    # ✅ 최종 안전 필터
     articles = [a for a in articles if not should_exclude_article(a.title, a.summary)]
 
-    # ✅ 6) 중복 제거 + “외 n개 매체” 묶기
+    # 6) 중복 제거 + “외 n개 매체” 묶기
     articles = dedupe_and_group_articles(articles, threshold=0.70)
 
     # 7) 분류
