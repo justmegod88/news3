@@ -17,7 +17,7 @@ try:
 except Exception:
     ZoneInfo = None
 
-# ✅ 추가
+# ✅ 날짜 필터 (이미 추가한 파일)
 from date_filter import is_exact_yesterday
 
 
@@ -36,19 +36,19 @@ class Article:
     summary: str
     image_url: Optional[str] = None
     is_naver: bool = False
-    text: str = ""          # ✅ 실제 기사 전체 텍스트 (날짜 판별용)
+    text: str = ""   # ✅ 실제 기사 전체 텍스트 (날짜 판별용)
+
 
 # =========================
 # Exclusion rules
 # =========================
 FINANCE_KEYWORDS = [
     "주가", "주식", "증시", "투자", "재무", "실적",
-    "매출", "영업이익", "순이익", "배당","부동산", 
+    "매출", "영업이익", "순이익", "배당","부동산",
     "상장", "ipo", "공모", "증권", "리포트",
     "목표주가", "시가총액", "ir", "주주",
 ]
 
-# 연예 / 예능 / 오락
 ENTERTAINMENT_HINTS = [
     "연예", "연예인", "예능", "방송", "드라마", "영화",
     "배우", "아이돌", "가수", "뮤지컬","공연", "문화",
@@ -57,7 +57,6 @@ ENTERTAINMENT_HINTS = [
     "팬미팅", "콘서트",
 ]
 
-# 인사 / 승진
 PERSONNEL_HINTS = [
     "인사", "임원 인사", "승진", "선임", "발탁",
     "대표이사", "사장", "부사장", "전무", "상무",
@@ -65,36 +64,28 @@ PERSONNEL_HINTS = [
     "취임", "영입",
 ]
 
-# 가수 다비치
 DAVICHI_SINGER_NAMES = ["강민경", "이해리"]
 DAVICHI_SINGER_HINTS = [
-    "가수", "음원", "신곡", "컴백", "앨범", "연예인","개그만", "연기", "배우","뮤지컬","뮤지션","1위",
-    "콘서트", "공연", "뮤직비디오","강민경","이해리","개그","듀오","카메라",
-    "차트", "유튜브", "방송", "예능", "ost", "연예","무대","히든싱어","가요","음악","시상식", "프로그램", 
+    "가수", "음원", "신곡", "컴백", "앨범", "연예인",
+    "콘서트", "공연", "뮤직비디오",
 ]
 
-# 얼굴/뷰티 노안
 FACE_AGING_HINTS = [
     "얼굴", "피부", "주름", "리프팅", "안티에이징",
-    "동안", "보톡스", "필러", "시술", "화장품", "뷰티","카메라","나이", "젊은데",
+    "동안", "보톡스", "필러", "시술", "화장품", "뷰티",
 ]
 
-# 포털 광고/ 낚시형 요약 문구
 AD_SNIPPET_HINTS = [
-    "모두가 속았다", "이걸 몰랐", "충격", "지금 확인", "알고 보니", "이유는?", "화제", 
-    "논란", "깜짝","지금 다운로드", "지금 클릭", "지금 확인",
+    "모두가 속았다", "이걸 몰랐", "충격", "지금 확인",
+    "알고 보니", "이유는?", "지금 클릭",
 ]
 
-
-
-# 광학/렌즈 업계 화이트리스트
 INDUSTRY_WHITELIST = [
-    "안경", "안경원","안경사", "호야", "에실로","자이스", "노안 렌즈", "노안 교정", 
-    "렌즈", "콘택트", "콘택트렌즈","오렌즈", "하피크리스틴",
-    "안과", "검안", "시력","콘택트 렌즈", "contact lens",
+    "안경", "안경원","안경사", "호야", "에실로","자이스",
+    "렌즈", "콘택트", "콘택트렌즈","오렌즈",
+    "안과", "검안", "시력","contact lens",
     "아큐브", "acuvue",
-    "존슨앤드존슨", "알콘", "쿠퍼비전", "바슈롬","쿠퍼 비젼", 
-    "인터로조", "클라렌", "쿠퍼", "렌즈미", "안경진정성"
+    "존슨앤드존슨", "알콘", "쿠퍼비전", "바슈롬",
 ]
 
 
@@ -104,53 +95,27 @@ INDUSTRY_WHITELIST = [
 def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "")).strip().lower()
 
-def should_exclude_article(title: str, summary: str = "") -> bool:
 
+def should_exclude_article(title: str, summary: str = "") -> bool:
     full = _normalize(title + " " + summary)
-    # 1) 투자 / 재무
+
     if any(k in full for k in FINANCE_KEYWORDS):
         return True
 
-    # 2) 얼굴/뷰티 노안
-    if "노안" in full and any(k in full for k in FACE_AGING_HINTS):
-        if not any(i in full for i in INDUSTRY_WHITELIST):
-            return True
-
-    # 3) 가수 다비치
-    if any(n in full for n in DAVICHI_SINGER_NAMES):
-        return True
-    if "다비치" in full or "davichi" in full:
-        if any(h in full for h in DAVICHI_SINGER_HINTS):
-            if not any(i in full for i in INDUSTRY_WHITELIST):
-                return True
-
-    # 4) 연예 / 예능 / 오락
     if any(h in full for h in ENTERTAINMENT_HINTS):
         if not any(i in full for i in INDUSTRY_WHITELIST):
             return True
 
-    # 5) 타 업계 인사 / 승진
     if any(h in full for h in PERSONNEL_HINTS):
         if not any(i in full for i in INDUSTRY_WHITELIST):
             return True
 
-    # 6) 포털 광고 / 카드형 요약 제거
-    if summary:
-        if any(h in summary for h in AD_SNIPPET_HINTS):
-            if not any(i in full for i in INDUSTRY_WHITELIST):
-                return True
-
-    # 7) 요약이 너무 짧은 카드형 문구 제거
     if summary and len(summary) < 40:
         if not any(i in full for i in INDUSTRY_WHITELIST):
             return True
 
-    # 8) (옵션 B) 업계 무관 기사 기본 제외 ❌ 비활성
-    # if not any(i in full for i in INDUSTRY_WHITELIST):
-    #     return True
-
     return False
- 
+
 
 # =========================
 # Config / Timezone
@@ -212,50 +177,26 @@ def resolve_final_url(link: str) -> str:
 
 
 # =========================
-# Deduplication (URL + Title)
+# ✅ 실제 기사 페이지 텍스트 수집 (NEW)
 # =========================
-def _normalize_url(url: str) -> str:
-    if not url:
+def fetch_article_text(url: str) -> str:
+    try:
+        res = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+        res.raise_for_status()
+        soup = BeautifulSoup(res.text, "html.parser")
+
+        title_el = soup.find("h1") or soup.find("title")
+        title = title_el.get_text(" ", strip=True) if title_el else ""
+
+        meta_text = soup.get_text(" ", strip=True)[:1000]
+
+        body = soup.find("article") or soup.find("div", id="content") or soup.body
+        body_text = body.get_text(" ", strip=True) if body else ""
+
+        return f"{title}\n{meta_text}\n{body_text}"
+
+    except Exception:
         return ""
-    p = urlparse(url)
-    path = (p.path or "").rstrip("/")
-    scheme = p.scheme or "https"
-    return f"{scheme}://{p.netloc.lower()}{path}"
-
-
-def _normalize_title(title: str) -> str:
-    t = (title or "").lower().strip()
-    t = re.sub(r"\[[^\]]+\]", " ", t)
-    t = re.sub(r"\([^)]*\)", " ", t)
-    t = re.sub(r"[^\w가-힣]+", " ", t)
-    t = re.sub(r"\s+", " ", t).strip()
-    return t
-
-
-def deduplicate_articles(articles: List[Article]) -> List[Article]:
-    seen_urls = set()
-    seen_titles = set()
-    out = []
-
-    for a in articles:
-        a.link = resolve_final_url(a.link)
-
-        u = _normalize_url(a.link)
-        t = _normalize_title(a.title)
-
-        if u and u in seen_urls:
-            continue
-        if t and t in seen_titles:
-            continue
-
-        if u:
-            seen_urls.add(u)
-        if t:
-            seen_titles.add(t)
-
-        out.append(a)
-
-    return out
 
 
 # =========================
@@ -282,13 +223,21 @@ def fetch_from_google_news(query, source_name, tz):
         if should_exclude_article(title, summary):
             continue
 
+        final_url = resolve_final_url(getattr(e, "link", ""))
+        text = fetch_article_text(final_url)
+
+        # ✅ 핵심: 어제(연/월/일 완전 일치)만 통과
+        if not is_exact_yesterday(text):
+            continue
+
         articles.append(
             Article(
                 title=title,
-                link=getattr(e, "link", ""),
+                link=final_url,
                 published=published,
                 source=source,
                 summary=summary,
+                text=text,
             )
         )
 
@@ -329,14 +278,21 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
             press = it.select_one("a.info.press")
             source = press.get_text(strip=True) if press else source_name
 
+            final_url = resolve_final_url(link)
+            text = fetch_article_text(final_url)
+
+            if not is_exact_yesterday(text):
+                continue
+
             articles.append(
                 Article(
                     title=title,
-                    link=link,
+                    link=final_url,
                     published=_safe_now(tz),
                     source=source,
                     summary=summary,
                     is_naver=True,
+                    text=text,
                 )
             )
 
@@ -357,19 +313,11 @@ def fetch_all_articles(cfg):
     for src in sources:
         for kw in keywords:
             if src["name"] == "NaverNews":
-                all_articles += fetch_from_naver_news(kw, src["name"], tz, naver_pages)
+                all_articles += fetch_from_naver_news(
+                    kw, src["name"], tz, naver_pages
+                )
             else:
                 q = f"{kw} site:{src['host']}" if src.get("host") else kw
                 all_articles += fetch_from_google_news(q, src["name"], tz)
 
     return all_articles
-
-
-def filter_yesterday_articles(articles, cfg):
-    tz = _get_tz(cfg)
-    y = _safe_now(tz).date() - dt.timedelta(days=1)
-    return [a for a in articles if a.published.date() == y]
-
-
-def filter_out_finance_articles(articles):
-    return [a for a in articles if not should_exclude_article(a.title, a.summary)]
