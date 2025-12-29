@@ -17,15 +17,10 @@ try:
 except Exception:
     ZoneInfo = None
 
-from date_filter import is_exact_yesterday  # ✅ 텍스트 기반 어제 필터
-
+from date_filter import is_exact_yesterday, extract_best_date
 
 GOOGLE_NEWS_RSS_BASE = "https://news.google.com/rss/search"
 
-
-# =========================
-# Data model
-# =========================
 @dataclass
 class Article:
     title: str
@@ -35,12 +30,8 @@ class Article:
     summary: str
     image_url: Optional[str] = None
     is_naver: bool = False
-    text: str = ""  # ✅ (제목+본문+메타) 전체 텍스트
+    text: str = ""  # 제목+본문+메타 텍스트
 
-
-# =========================
-# Exclusion rules
-# =========================
 FINANCE_KEYWORDS = [
     "주가", "주식", "증시", "투자", "재무", "실적",
     "매출", "영업이익", "순이익", "배당","부동산",
@@ -65,37 +56,31 @@ PERSONNEL_HINTS = [
 
 DAVICHI_SINGER_NAMES = ["강민경", "이해리"]
 DAVICHI_SINGER_HINTS = [
-    "가수", "음원", "신곡", "컴백", "앨범", "연예인","개그만", "연기", "배우","뮤지컬","뮤지션","1위",
-    "콘서트", "공연", "뮤직비디오","강민경","이해리","개그","듀오","카메라",
-    "차트", "유튜브", "방송", "예능", "ost", "연예","무대","히든싱어","가요","음악","시상식", "프로그램",
+    "가수", "음원", "신곡", "컴백", "앨범", "연예인","개그만", "연기", "배우",
+    "콘서트", "공연", "뮤직비디오","강민경","이해리","듀오",
+    "차트", "유튜브", "방송", "예능", "ost", "시상식",
 ]
 
 FACE_AGING_HINTS = [
     "얼굴", "피부", "주름", "리프팅", "안티에이징",
-    "동안", "보톡스", "필러", "시술", "화장품", "뷰티","카메라","나이", "젊은데",
+    "동안", "보톡스", "필러", "시술", "화장품", "뷰티","나이",
 ]
 
 AD_SNIPPET_HINTS = [
     "모두가 속았다", "이걸 몰랐", "충격", "지금 확인", "알고 보니", "이유는?", "화제",
-    "논란", "깜짝","지금 다운로드", "지금 클릭", "지금 확인",
+    "논란", "깜짝","지금 다운로드", "지금 클릭",
 ]
 
 INDUSTRY_WHITELIST = [
-    "안경", "안경원","안경사", "호야", "에실로","자이스", "노안 렌즈", "노안 교정",
-    "렌즈", "콘택트", "콘택트렌즈","오렌즈", "하피크리스틴",
-    "안과", "검안", "시력","콘택트 렌즈", "contact lens",
+    "안경", "안경원","안경사", "호야", "에실로","자이스",
+    "렌즈", "콘택트", "콘택트렌즈","안과", "검안", "시력",
     "아큐브", "acuvue",
-    "존슨앤드존슨", "알콘", "쿠퍼비전", "바슈롬","쿠퍼 비젼",
-    "인터로조", "클라렌", "쿠퍼", "렌즈미", "안경진정성"
+    "존슨앤드존슨", "알콘", "쿠퍼비전", "바슈롬",
+    "인터로조", "클라렌",
 ]
 
-
-# =========================
-# Utils
-# =========================
 def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "")).strip().lower()
-
 
 def should_exclude_article(title: str, summary: str = "") -> bool:
     full = _normalize(title + " " + summary)
@@ -122,10 +107,9 @@ def should_exclude_article(title: str, summary: str = "") -> bool:
         if not any(i in full for i in INDUSTRY_WHITELIST):
             return True
 
-    if summary:
-        if any(h in summary for h in AD_SNIPPET_HINTS):
-            if not any(i in full for i in INDUSTRY_WHITELIST):
-                return True
+    if summary and any(h in summary for h in AD_SNIPPET_HINTS):
+        if not any(i in full for i in INDUSTRY_WHITELIST):
+            return True
 
     if summary and len(summary) < 40:
         if not any(i in full for i in INDUSTRY_WHITELIST):
@@ -133,14 +117,9 @@ def should_exclude_article(title: str, summary: str = "") -> bool:
 
     return False
 
-
-# =========================
-# Config / Timezone
-# =========================
 def load_config(path="config.yaml"):
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
-
 
 def _get_tz(cfg):
     tz_name = cfg.get("timezone", "Asia/Seoul")
@@ -149,24 +128,28 @@ def _get_tz(cfg):
     from dateutil import tz
     return tz.gettz(tz_name)
 
-
 def _safe_now(tz):
     return dt.datetime.now(tz)
 
+def _kst_yesterday_date(tz):
+    return dt.datetime.now(tz).date() - dt.timedelta(days=1)
 
-# =========================
-# Helpers
-# =========================
+def _is_published_yesterday(published_dt: dt.datetime, tz) -> bool:
+    try:
+        if published_dt.tzinfo is None:
+            published_dt = published_dt.replace(tzinfo=tz)
+        return published_dt.astimezone(tz).date() == _kst_yesterday_date(tz)
+    except Exception:
+        return False
+
 def parse_rss_datetime(value, tz):
     d = date_parser.parse(value)
     if d.tzinfo is None:
         return d.replace(tzinfo=tz)
     return d.astimezone(tz)
 
-
 def build_google_news_url(query):
     return f"{GOOGLE_NEWS_RSS_BASE}?q={quote_plus(query)}&hl=ko&gl=KR&ceid=KR:ko"
-
 
 def clean_summary(raw):
     text = raw or ""
@@ -175,13 +158,11 @@ def clean_summary(raw):
     text = html.unescape(text)
     return re.sub(r"\s+", " ", text).strip()
 
-
 def parse_google_title_and_press(raw_title: str) -> Tuple[str, str]:
     if " - " not in raw_title:
         return raw_title.strip(), ""
     parts = raw_title.split(" - ")
     return " - ".join(parts[:-1]).strip(), parts[-1].strip()
-
 
 def resolve_final_url(link: str) -> str:
     try:
@@ -192,24 +173,16 @@ def resolve_final_url(link: str) -> str:
         pass
     return link
 
-
 def fetch_article_text(url: str) -> str:
-    """
-    페이지에서 뽑은 text (제목+본문+메타 포함)
-    - 날짜 추출은 이 text 기준
-    - 실패하면 빈 문자열 반환(→ 무조건 제외)
-    """
     try:
-        res = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+        res = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
         res.raise_for_status()
         soup = BeautifulSoup(res.text, "html.parser")
 
         title_el = soup.find("h1") or soup.find("title")
         title = title_el.get_text(" ", strip=True) if title_el else ""
 
-        # 메타 포함(입력/수정이 보통 여기 노출)
-        meta_text = soup.get_text(" ", strip=True)[:1200]
-
+        meta_text = soup.get_text(" ", strip=True)[:1500]
         body = soup.find("article") or soup.find("div", id="content") or soup.body
         body_text = body.get_text(" ", strip=True) if body else ""
 
@@ -217,10 +190,6 @@ def fetch_article_text(url: str) -> str:
     except Exception:
         return ""
 
-
-# =========================
-# Deduplication (URL + Title)
-# =========================
 def _normalize_url(url: str) -> str:
     if not url:
         return ""
@@ -228,7 +197,6 @@ def _normalize_url(url: str) -> str:
     path = (p.path or "").rstrip("/")
     scheme = p.scheme or "https"
     return f"{scheme}://{p.netloc.lower()}{path}"
-
 
 def _normalize_title(title: str) -> str:
     t = (title or "").lower().strip()
@@ -238,36 +206,25 @@ def _normalize_title(title: str) -> str:
     t = re.sub(r"\s+", " ", t).strip()
     return t
 
-
 def deduplicate_articles(articles: List[Article]) -> List[Article]:
     seen_urls = set()
     seen_titles = set()
     out = []
-
     for a in articles:
         a.link = resolve_final_url(a.link)
-
         u = _normalize_url(a.link)
         t = _normalize_title(a.title)
-
         if u and u in seen_urls:
             continue
         if t and t in seen_titles:
             continue
-
         if u:
             seen_urls.add(u)
         if t:
             seen_titles.add(t)
-
         out.append(a)
-
     return out
 
-
-# =========================
-# Google News
-# =========================
 def fetch_from_google_news(query, source_name, tz):
     feed = feedparser.parse(build_google_news_url(query))
     articles = []
@@ -275,6 +232,9 @@ def fetch_from_google_news(query, source_name, tz):
     for e in getattr(feed, "entries", []):
         title, press2 = parse_google_title_and_press(e.title)
         summary = clean_summary(getattr(e, "summary", ""))
+
+        if should_exclude_article(title, summary):
+            continue
 
         published = parse_rss_datetime(
             getattr(e, "published", None) or getattr(e, "updated", None),
@@ -287,15 +247,19 @@ def fetch_from_google_news(query, source_name, tz):
             or source_name
         )
 
-        if should_exclude_article(title, summary):
-            continue
-
         final_url = resolve_final_url(getattr(e, "link", ""))
-        text = fetch_article_text(final_url)
 
-        # ✅ 날짜 추출 실패하면 무조건 제외
-        if not text or not is_exact_yesterday(text):
-            continue
+        text = fetch_article_text(final_url)
+        page_date = extract_best_date(text) if text else None
+
+        # ✅ 1순위: 원문 날짜가 있으면 그걸로 '어제' 판정
+        if page_date is not None:
+            if not is_exact_yesterday(text):
+                continue
+        else:
+            # ✅ 2순위: 원문 날짜 못 찾으면 RSS published로 '어제' 판정
+            if not _is_published_yesterday(published, tz):
+                continue
 
         articles.append(
             Article(
@@ -310,10 +274,6 @@ def fetch_from_google_news(query, source_name, tz):
 
     return articles
 
-
-# =========================
-# Naver News
-# =========================
 def fetch_from_naver_news(keyword, source_name, tz, pages=8):
     base = "https://search.naver.com/search.naver"
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -324,7 +284,6 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
         params = {"where": "news", "query": keyword, "start": start}
         r = requests.get(base, params=params, headers=headers, timeout=10)
         soup = BeautifulSoup(r.text, "html.parser")
-
         items = soup.select("div.news_wrap")
         if not items:
             break
@@ -348,9 +307,18 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
 
             final_url = resolve_final_url(link)
             text = fetch_article_text(final_url)
+            page_date = extract_best_date(text) if text else None
 
-            if not text or not is_exact_yesterday(text):
-                continue
+            # 네이버는 리스트 자체가 최신 위주지만, 동일 정책 적용
+            if page_date is not None:
+                if not is_exact_yesterday(text):
+                    continue
+            else:
+                # 원문 날짜 없으면 네이버는 "수집 시각"을 published로 두되,
+                # 여기서도 어제만 보내고 싶으면: (현재는 RSS처럼 published가 없어서)
+                # 어제 메일 기준이면: _safe_now(tz).date() == yesterday가 성립할 때만 통과
+                if _safe_now(tz).date() != _kst_yesterday_date(tz):
+                    continue
 
             articles.append(
                 Article(
@@ -366,10 +334,6 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
 
     return articles
 
-
-# =========================
-# Orchestration
-# =========================
 def fetch_all_articles(cfg):
     tz = _get_tz(cfg)
     keywords = cfg.get("keywords", [])
@@ -377,7 +341,6 @@ def fetch_all_articles(cfg):
     naver_pages = int(cfg.get("naver_pages", 8))
 
     all_articles = []
-
     for src in sources:
         for kw in keywords:
             if src["name"] == "NaverNews":
@@ -388,17 +351,24 @@ def fetch_all_articles(cfg):
 
     return all_articles
 
-
 def filter_yesterday_articles(articles, cfg):
-    """
-    ✅ 기존 인터페이스 유지(Newsletter import 에러 방지)
-    ✅ 하지만 published.date()를 믿지 않고, text 기반 '어제'로 판단
-    """
-    return [a for a in articles if is_exact_yesterday(getattr(a, "text", ""))]
+    # 인터페이스 유지용 (newsletter.py 호환)
+    tz = _get_tz(cfg)
+    y = _kst_yesterday_date(tz)
 
+    out = []
+    for a in articles:
+        text = getattr(a, "text", "") or ""
+        page_date = extract_best_date(text) if text else None
+
+        if page_date is not None:
+            if page_date == y:
+                out.append(a)
+        else:
+            if _is_published_yesterday(getattr(a, "published", _safe_now(tz)), tz):
+                out.append(a)
+
+    return out
 
 def filter_out_finance_articles(articles):
-    """
-    ✅ 기존 함수 유지
-    """
     return [a for a in articles if not should_exclude_article(a.title, a.summary)]
