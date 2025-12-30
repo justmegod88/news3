@@ -322,8 +322,6 @@ def main():
     articles = filter_out_finance_articles(articles)
 
     # 3) 날짜 필터: 어제 기사만
-    # ✅ 지금 scrapers.py의 filter_yesterday_articles가
-    #    "텍스트 기반 어제(연/월/일 완전일치), 실패 시 제외"로 동작하도록 바뀐 상태여야 함
     articles = filter_yesterday_articles(articles, cfg)
 
     # 4) 1차 중복 제거(URL+제목)  ← scrapers.py
