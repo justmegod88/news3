@@ -17,7 +17,7 @@ try:
 except Exception:
     ZoneInfo = None
 
-
+STRICT_PAGE_DATE_DOMAINS = {"yakup.com"}  # ✅ 약학신문은 원문 날짜 없으면 무조건 제외
 GOOGLE_NEWS_RSS_BASE = "https://news.google.com/rss/search"
 
 
