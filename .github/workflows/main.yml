@@ -2,7 +2,8 @@ name: Daily News Newsletter
 
 on:
   schedule:
-    - cron: "0 1 * * *"  # 매일 UTC 01:00 = KST 오전 10:00
+    - cron: "0 23 * * *"
+# 매일 UTC 23:00 = KST 오전 08:00
  
   workflow_dispatch:
 
