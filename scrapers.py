@@ -44,6 +44,14 @@ FINANCE_KEYWORDS = [
     "목표주가", "시가총액", "ir", "주주",
 ]
 
+
+
+# ✅ 약업(야쿠프/약업신문) 도메인: 날짜 오류(과거 기사 유입) 방지용
+YAKUP_BLOCK_HOSTS = [
+    "yakup.com", "www.yakup.com",
+    "yakup.co.kr", "www.yakup.co.kr",
+]
+YAKUP_BLOCK_TOKENS = ["약업", "약업신문", "약학신문", "yakup"]
 # 연예 / 예능 / 오락
 ENTERTAINMENT_HINTS = [
     "연예", "연예인", "예능", "방송", "드라마", "영화",
@@ -369,3 +377,25 @@ def filter_yesterday_articles(articles, cfg):
 
 def filter_out_finance_articles(articles):
     return [a for a in articles if not should_exclude_article(a.title, a.summary)]
+
+
+def filter_out_yakup_articles(articles):
+    """약업(야쿠프) 기사만 확실히 제외.
+    - 약업신문은 종종 오래된 날짜(예: 2015)가 섞여 들어와 '어제 기사' 필터를 망칠 수 있어,
+      도메인/토큰 기반으로 선제 제외합니다.
+    """
+    out = []
+    for a in articles:
+        host = urlparse(a.link).netloc.lower() if getattr(a, "link", None) else ""
+        src = (getattr(a, "source", "") or "").lower()
+        title = (getattr(a, "title", "") or "").lower()
+
+        if host in YAKUP_BLOCK_HOSTS:
+            continue
+
+        # 구글뉴스 리다이렉트 등으로 host에서 못 잡는 경우 보완
+        if any(t in src for t in YAKUP_BLOCK_TOKENS) or any(t in title for t in YAKUP_BLOCK_TOKENS):
+            continue
+
+        out.append(a)
+    return out
