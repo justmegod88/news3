@@ -281,7 +281,7 @@ def main():
     articles = filter_out_finance_articles(articles)
 
     articles_yesterday = filter_yesterday_articles(
-        articles, cfg.get("timezone", "Asia/Seoul")
+        articles, cfg)
     )
     articles = articles_yesterday
 
