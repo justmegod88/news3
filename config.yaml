@@ -3,6 +3,9 @@ timezone: Asia/Seoul
 # 네이버 뉴스 검색 페이지 수 (1페이지 ≈ 10개)
 naver_pages: 8
 
+# =========================
+# 검색 키워드
+# =========================
 keywords:
   - 아큐브
   - 쿠퍼 렌즈
@@ -40,7 +43,6 @@ keywords:
   - 안경광학과
   - 안경사협회
   - 안경
-  
 
   # 영문 병행
   - soft contact lens
@@ -50,8 +52,12 @@ keywords:
   - Alcon contact lens
   - CooperVision
 
+
+# =========================
+# 뉴스 소스
+# =========================
 news_sources:
-  # 업계지 도메인 우선
+  # 업계지 우선
   - name: 한국안경신문
     host: opticnews.co.kr
   - name: 안경계
@@ -79,11 +85,23 @@ news_sources:
   - name: NaverNews
     host: ""
 
+
+# =========================
+# 제외 규칙
+# =========================
+# 약업신문 / 약업 계열만 정확히 제외
+exclude_sources:
+  - yakup
+  - 약업
+  - 약업신문
+  - 약학신문
+
+
+# =========================
+# 이메일 설정
+# =========================
 email:
   from: skim228@its.jnj.com
   to:
     - skim228@its.jnj.com
-
-  
-    
   subject_prefix: "[ACUVUE Daily News]"
