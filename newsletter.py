@@ -282,7 +282,7 @@ def main():
 
     articles_yesterday = filter_yesterday_articles(
         articles, cfg)
-    )
+    
     articles = articles_yesterday
 
     articles = deduplicate_articles(articles)
