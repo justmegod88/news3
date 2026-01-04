@@ -11,6 +11,7 @@ from scrapers import (
     fetch_all_articles,
     filter_yesterday_articles,
     filter_out_finance_articles,
+    filter_out_yakup_articles,
     deduplicate_articles,        # (scrapers.py의 URL+제목 dedup: 1차)
     should_exclude_article,      # ✅ 최종 안전 필터용
 )
@@ -318,11 +319,24 @@ def main():
     # 1) 수집
     articles = fetch_all_articles(cfg)
 
+    # 1-1) 약업(야쿠프)만 선제 제외 (과거 날짜 기사 유입 방지)
+    articles = filter_out_yakup_articles(articles)
+
     # 2) 제외 규칙 1차
     articles = filter_out_finance_articles(articles)
 
     # 3) 날짜 필터: 어제 기사만
-    articles = filter_yesterday_articles(articles, cfg)
+    articles_yesterday = filter_yesterday_articles(articles, cfg)
+
+    # ✅ 어제 기사가 너무 적으면(약업 제외 등으로) 최근 N일로 자동 확장
+    min_articles = int(cfg.get('min_articles', 18))
+    fallback_days = int(cfg.get('fallback_days', 2))
+    if len(articles_yesterday) < min_articles:
+        today = dt.datetime.now(tz).date()
+        cutoff = today - dt.timedelta(days=fallback_days)
+        articles = [a for a in articles if a.published.date() >= cutoff]
+    else:
+        articles = articles_yesterday
 
     # 4) 1차 중복 제거(URL+제목)  ← scrapers.py
     articles = deduplicate_articles(articles)
