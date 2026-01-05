@@ -98,41 +98,54 @@ def _source_priority(source: str) -> int:
 
 
 def _pick_representative(group):
+    """
+    그룹(중복 묶음)에서 대표 기사 1개 선택:
+      1) 업계지 우선
+      2) 그 다음 통신사/대형
+      3) 그 외
+    동순위면 '제목 길이(정보량)'가 더 큰 걸 우선.
+    """
     def score(a):
         src = getattr(a, "source", "") or ""
         title = getattr(a, "title", "") or ""
         return (_source_priority(src), -len(_normalize_title(title)))
+
     return sorted(group, key=score)[0]
 
 
 # =========================
-# ✅ (C) 중복 제거 + 묶기
-#     ✅ 변경: CORE 조건 제거
-#     ✅ 변경: 유사도(sim) >= threshold(0.60) 이면 중복 병합
+# ✅ (C) 중복 제거 + 묶기 (유사도 >= 0.80이면 중복)
+#     핵심:
+#       - 1차: "제목 우선"으로 묶어서 (언론사별 URL 달라도) 중복 제거가 되게 함
+#       - 2차: summary(있으면) 또는 title 유사도 >= threshold로 병합
 # =========================
-def dedupe_and_group_articles(articles, threshold: float = 0.60):
+def dedupe_and_group_articles(articles, threshold: float = 0.80):
     """
     반환: 대표 기사 리스트
     대표 기사에는 a.duplicates = [{source, link, title}, ...] 가 생김
 
-    ✅ 정책:
-    - URL+제목 완전 동일은 무조건 중복
-    - summary(있으면 summary) / 없으면 title 유사도 >= threshold면 중복
-    - CORE 키워드 조건 없음
+    ✅ threshold 기본값: 0.80
     """
-    # 1) URL+제목 완전 동일 기준으로 1차 그룹핑
+    # 1) "제목 우선" 1차 그룹핑
+    #    - title_key가 있으면 title_key로 묶고,
+    #    - title_key가 비어있을 때만 URL로 묶음
     exact_map = {}
     for a in articles:
         url_key = _normalize_url(getattr(a, "link", ""))
         title_key = _normalize_title(getattr(a, "title", ""))
-        key = (url_key, title_key)
+
+        if title_key:
+            key = ("t", title_key)
+        else:
+            key = ("u", url_key)
+
         exact_map.setdefault(key, []).append(a)
 
     stage1_groups = list(exact_map.values())
 
-    # 2) 요약 유사도 기반으로 그룹 병합
-    #    - 전체 n^2 방지: 제목 키 prefix 버킷으로 후보만 비교
-    buckets = {}
+    # 2) 요약/제목 유사도로 그룹 병합
+    #    - n^2 방지: 제목 prefix 버킷 안에서만 비교
+    buckets = {}  # bucket_key -> list[group]
     merged_groups = []
 
     for grp in stage1_groups:
@@ -149,13 +162,11 @@ def dedupe_and_group_articles(articles, threshold: float = 0.60):
             ex_title = getattr(ex, "title", "") or ""
             ex_summary = getattr(ex, "summary", "") or ""
 
-            # summary가 둘 다 있으면 summary로, 아니면 title 유사도로 보조
             if base_summary and ex_summary:
                 sim = _similarity(base_summary, ex_summary)
             else:
                 sim = _similarity(base_title, ex_title)
 
-            # ✅ 변경: 유사도만으로 병합(코어 조건 제거)
             if sim >= threshold:
                 existing_grp.extend(grp)
                 merged = True
@@ -166,11 +177,10 @@ def dedupe_and_group_articles(articles, threshold: float = 0.60):
             cand_groups.append(grp)
             buckets[bucket_key] = cand_groups
 
-    # 3) 각 그룹에서 대표 선택 + duplicates 정보 생성
+    # 3) 대표 선택 + duplicates 정보 생성
     representatives = []
     for grp in merged_groups:
         rep = _pick_representative(grp)
-
         dups = []
         for a in grp:
             if a is rep:
@@ -180,7 +190,6 @@ def dedupe_and_group_articles(articles, threshold: float = 0.60):
                 "link": getattr(a, "link", "") or "",
                 "title": getattr(a, "title", "") or "",
             })
-
         setattr(rep, "duplicates", dups)
         representatives.append(rep)
 
@@ -213,6 +222,8 @@ def remove_cross_category_duplicates(*category_lists):
 
 # =========================
 # ✅ (E) 3~4문장 AI 브리핑
+#    - 기사 0건이면 요약도 “없음”
+#    - 카테고리 1개만 있을 때 “이와 함께” 어색함 방지
 # =========================
 def build_yesterday_summary_3to4(
     acuvue_articles,
@@ -253,12 +264,14 @@ def build_yesterday_summary_3to4(
         category_points.append("눈 건강 및 캠페인 관련 움직임")
 
     if category_points:
+        # ✅ 첫 문장이 이미 있으면 "이와 함께", 없으면 그냥 바로
         prefix = "이와 함께 " if sentences else ""
         if len(category_points) == 1:
             sentences.append(f"{prefix}{category_points[0]} 관련 기사가 확인되었습니다.")
         else:
             sentences.append(f"{prefix}{', '.join(category_points)} 관련 기사들이 확인되었습니다.")
 
+    # ✅ 기사 수가 어느 정도 있을 때만 총평 추가
     if total >= 3:
         sentences.append(
             "전반적으로 시장 및 경쟁 환경의 변화가 향후 전략 수립 시 참고할 만한 흐름으로 판단됩니다."
@@ -274,30 +287,29 @@ def main():
     # 1) 수집
     articles = fetch_all_articles(cfg)
 
-    # 2) 약업신문 제외 + 재무/투자 제외
+    # 2) 제외 규칙 (약업신문 제외 + 투자/재무/실적 제외 + 기타 should_exclude)
     articles = filter_out_yakup_articles(articles)
     articles = filter_out_finance_articles(articles)
 
     # 3) 날짜 필터: 어제 기사만
-    articles_yesterday = filter_yesterday_articles(articles, cfg)
-    articles = articles_yesterday
+    articles = filter_yesterday_articles(articles, cfg)
 
-    # 4) 1차 dedup (URL+제목)
+    # 4) 1차 중복 제거(빠른 제거: URL+제목)  ← scrapers.py
     articles = deduplicate_articles(articles)
 
     # 5) 기사 요약(summary 채우기)
     refine_article_summaries(articles)
 
-    # 6) 최종 안전 필터(요약 포함해서 한번 더)
+    # 6) 최종 안전 필터(요약 후에도 살아남는 케이스 차단)
     articles = [a for a in articles if not should_exclude_article(a.title, a.summary)]
 
-    # ✅ 7) 2차 dedup (요청 반영: 유사도 0.80 이상이면 중복 병합)
+    # 7) ✅ 중복 제거(유사도 0.80 이상이면 중복 처리)
     articles = dedupe_and_group_articles(articles, threshold=0.80)
 
     # 8) 분류
     categorized = categorize_articles(articles)
 
-    # 9) 카테고리 간 중복 제거
+    # 9) 카테고리 간 중복 제거 (우선순위대로 하나만 남김)
     acuvue_list, company_list, product_list, trend_list, eye_health_list = remove_cross_category_duplicates(
         categorized.acuvue,
         categorized.company,
@@ -306,7 +318,7 @@ def main():
         categorized.eye_health,
     )
 
-    # 10) AI 브리핑
+    # 10) 어제 기사 AI 브리핑
     summary = build_yesterday_summary_3to4(
         acuvue_list,
         company_list,
