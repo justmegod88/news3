@@ -291,7 +291,7 @@ def main():
 
     articles = [a for a in articles if not should_exclude_article(a.title, a.summary)]
 
-    articles = dedupe_and_group_articles(articles, threshold=0.60)
+    articles = dedupe_and_group_articles(articles, threshold=0.50)
 
     categorized = categorize_articles(articles)
 
