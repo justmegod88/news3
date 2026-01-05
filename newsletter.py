@@ -107,27 +107,20 @@ def _pick_representative(group):
 
 # =========================
 # ✅ (C) 중복 제거 + 묶기
+#     ✅ 변경: CORE 조건 제거
+#     ✅ 변경: 유사도(sim) >= threshold(0.80) 이면 중복 병합
 # =========================
-CORE_ENTITIES = [
-    "다비치안경",
-    "무료",
-    "복지관",
-    "주민",
-    "눈 건강",
-    "우리 동네",
-    "사회공헌",
-    "지원",
-    "나눔",
-]
+def dedupe_and_group_articles(articles, threshold: float = 0.80):
+    """
+    반환: 대표 기사 리스트
+    대표 기사에는 a.duplicates = [{source, link, title}, ...] 가 생김
 
-
-def _share_core_entity(a: str, b: str) -> bool:
-    a = _normalize_text(a)
-    b = _normalize_text(b)
-    return any(e in a and e in b for e in CORE_ENTITIES)
-
-
-def dedupe_and_group_articles(articles, threshold: float = 0.60):
+    ✅ 정책:
+    - URL+제목 완전 동일은 무조건 중복
+    - summary(있으면 summary) / 없으면 title 유사도 >= threshold면 중복
+    - CORE 키워드 조건 없음
+    """
+    # 1) URL+제목 완전 동일 기준으로 1차 그룹핑
     exact_map = {}
     for a in articles:
         url_key = _normalize_url(getattr(a, "link", ""))
@@ -137,6 +130,8 @@ def dedupe_and_group_articles(articles, threshold: float = 0.60):
 
     stage1_groups = list(exact_map.values())
 
+    # 2) 요약 유사도 기반으로 그룹 병합
+    #    - 전체 n^2 방지: 제목 키 prefix 버킷으로 후보만 비교
     buckets = {}
     merged_groups = []
 
@@ -154,16 +149,14 @@ def dedupe_and_group_articles(articles, threshold: float = 0.60):
             ex_title = getattr(ex, "title", "") or ""
             ex_summary = getattr(ex, "summary", "") or ""
 
+            # summary가 둘 다 있으면 summary로, 아니면 title 유사도로 보조
             if base_summary and ex_summary:
                 sim = _similarity(base_summary, ex_summary)
-                text_a = base_summary
-                text_b = ex_summary
             else:
                 sim = _similarity(base_title, ex_title)
-                text_a = base_title
-                text_b = ex_title
 
-            if sim >= threshold and _share_core_entity(text_a, text_b):
+            # ✅ 변경: 유사도만으로 병합(코어 조건 제거)
+            if sim >= threshold:
                 existing_grp.extend(grp)
                 merged = True
                 break
@@ -173,9 +166,11 @@ def dedupe_and_group_articles(articles, threshold: float = 0.60):
             cand_groups.append(grp)
             buckets[bucket_key] = cand_groups
 
+    # 3) 각 그룹에서 대표 선택 + duplicates 정보 생성
     representatives = []
     for grp in merged_groups:
         rep = _pick_representative(grp)
+
         dups = []
         for a in grp:
             if a is rep:
@@ -185,6 +180,7 @@ def dedupe_and_group_articles(articles, threshold: float = 0.60):
                 "link": getattr(a, "link", "") or "",
                 "title": getattr(a, "title", "") or "",
             })
+
         setattr(rep, "duplicates", dups)
         representatives.append(rep)
 
@@ -275,26 +271,33 @@ def main():
     cfg = load_config()
     tz = ZoneInfo(cfg.get("timezone", "Asia/Seoul"))
 
+    # 1) 수집
     articles = fetch_all_articles(cfg)
 
+    # 2) 약업신문 제외 + 재무/투자 제외
     articles = filter_out_yakup_articles(articles)
     articles = filter_out_finance_articles(articles)
 
-    articles_yesterday = filter_yesterday_articles(
-        articles, cfg)
-    
+    # 3) 날짜 필터: 어제 기사만
+    articles_yesterday = filter_yesterday_articles(articles, cfg)
     articles = articles_yesterday
 
+    # 4) 1차 dedup (URL+제목)
     articles = deduplicate_articles(articles)
 
+    # 5) 기사 요약(summary 채우기)
     refine_article_summaries(articles)
 
+    # 6) 최종 안전 필터(요약 포함해서 한번 더)
     articles = [a for a in articles if not should_exclude_article(a.title, a.summary)]
 
-    articles = dedupe_and_group_articles(articles, threshold=0.50)
+    # ✅ 7) 2차 dedup (요청 반영: 유사도 0.80 이상이면 중복 병합)
+    articles = dedupe_and_group_articles(articles, threshold=0.80)
 
+    # 8) 분류
     categorized = categorize_articles(articles)
 
+    # 9) 카테고리 간 중복 제거
     acuvue_list, company_list, product_list, trend_list, eye_health_list = remove_cross_category_duplicates(
         categorized.acuvue,
         categorized.company,
@@ -303,6 +306,7 @@ def main():
         categorized.eye_health,
     )
 
+    # 10) AI 브리핑
     summary = build_yesterday_summary_3to4(
         acuvue_list,
         company_list,
@@ -311,6 +315,7 @@ def main():
         eye_health_list,
     )
 
+    # 11) 템플릿 렌더링
     env = Environment(loader=FileSystemLoader("."), autoescape=True)
     template = env.get_template("template_newsletter.html")
 
@@ -324,11 +329,13 @@ def main():
         eye_health_articles=eye_health_list,
     )
 
+    # 12) 메일 제목
     email = cfg["email"]
     yesterday_str = (dt.datetime.now(tz).date() - dt.timedelta(days=1)).strftime("%Y-%m-%d")
     subject_prefix = email.get("subject_prefix", "[Daily News]")
     subject = f"{subject_prefix} 어제 기사 브리핑 - {yesterday_str}"
 
+    # 13) 발송
     send_email_html(
         subject=subject,
         html_body=html,
