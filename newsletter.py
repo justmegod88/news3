@@ -108,9 +108,9 @@ def _pick_representative(group):
 # =========================
 # ✅ (C) 중복 제거 + 묶기
 #     ✅ 변경: CORE 조건 제거
-#     ✅ 변경: 유사도(sim) >= threshold(0.80) 이면 중복 병합
+#     ✅ 변경: 유사도(sim) >= threshold(0.75) 이면 중복 병합
 # =========================
-def dedupe_and_group_articles(articles, threshold: float = 0.80):
+def dedupe_and_group_articles(articles, threshold: float = 0.75):
     """
     반환: 대표 기사 리스트
     대표 기사에는 a.duplicates = [{source, link, title}, ...] 가 생김
