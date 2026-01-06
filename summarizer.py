@@ -1,4 +1,5 @@
 import re
+import difflib
 from typing import List
 
 # OpenAI 사용은 선택(없어도 동작)
@@ -83,17 +84,95 @@ def summarize_overall(articles: List) -> str:
         return _fallback_summary(articles)
 
 
+# =========================
+# ✅ 제목/요약 겹침 방지용 (핵심 개선)
+# =========================
+def _norm_text(s: str) -> str:
+    s = re.sub(r"\s+", " ", (s or "")).strip()
+    s = re.sub(r"[\"'“”‘’]", "", s)
+    return s
+
+
+def _is_too_similar(title: str, summary: str, threshold: float = 0.78) -> bool:
+    t = _norm_text(title)
+    s = _norm_text(summary)
+
+    if not t or not s:
+        return True
+
+    # summary가 title을 포함/역포함하거나 너무 짧으면 재작성
+    if t in s or s in t:
+        return True
+    if len(s) < 60:
+        return True
+
+    ratio = difflib.SequenceMatcher(None, t, s).ratio()
+    return ratio >= threshold
+
+
+def _rewrite_summary(client, title: str, raw_summary: str) -> str:
+    title = _norm_text(title)
+    raw_summary = _norm_text(raw_summary)
+
+    prompt = f"""
+너는 업계 데일리 뉴스레터 편집자다.
+아래 [제목]과 [원문요약]을 바탕으로, 뉴스레터에 넣을 '2~3문장 요약'을 작성해라.
+
+규칙:
+- 제목 문구를 그대로 반복하지 말고, 다른 표현으로 바꿔 쓸 것
+- 2~3문장, 사실 중심
+- 과장/추측 금지, 홍보 문구 금지
+- 220자 이내(가능하면 160~200자)
+
+[제목]
+{title}
+
+[원문요약]
+{raw_summary}
+
+[출력]
+""".strip()
+
+    r = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+    )
+    text = (r.choices[0].message.content or "").strip()
+    text = re.sub(r"\s+\n", "\n", text).strip()
+    text = re.sub(r"\s+", " ", text).strip()
+
+    if len(text) > 220:
+        text = text[:220].rstrip() + "…"
+    return text
+
+
 def refine_article_summaries(articles: List) -> None:
     """
-    기사별 summary가 너무 길면 UI가 무너지니 1차적으로 컷.
-    (OpenAI 없어도 동작)
+    ✅ 기사별 summary를 뉴스레터용으로 다듬기
+    - 기본: 길이 컷(220자)
+    - 개선: summary가 title과 너무 비슷하면(OpenAI 가능 시) 2~3문장으로 재작성
     """
+    client = _get_client()
+
     for a in articles:
-        s = getattr(a, "summary", "") or ""
-        s = re.sub(r"\s+", " ", s).strip()
-        if len(s) > 220:
-            s = s[:220].rstrip() + "…"
+        title = getattr(a, "title", "") or ""
+        summary = getattr(a, "summary", "") or ""
+
+        title = _norm_text(title)
+        summary = _norm_text(summary)
+
+        if client is not None and _is_too_similar(title, summary):
+            try:
+                summary = _rewrite_summary(client, title, summary)
+            except Exception:
+                pass  # 실패하면 기존 summary 유지
+
+        # 최종 길이 컷
+        if len(summary) > 220:
+            summary = summary[:220].rstrip() + "…"
+
         try:
-            a.summary = s
+            a.summary = summary
         except Exception:
             pass
