@@ -39,9 +39,9 @@ class Article:
 # =========================
 FINANCE_KEYWORDS = [
     "주가", "주식", "증시", "투자", "재무", "실적",
-    "매출", "영업이익", "순이익", "배당", "부동산",
+    "매출", "영업이익", "순이익", "배당","부동산",
     "상장", "ipo", "공모", "증권", "리포트",
-    "목표주가", "시가총액", "ir", "주주", "오렌지",
+    "목표주가", "시가총액", "ir", "주주","오렌지",
 ]
 
 # ✅ 약업(야쿠프/약업신문) 도메인: 날짜 오류(과거 기사 유입) 방지용
@@ -54,9 +54,9 @@ YAKUP_BLOCK_TOKENS = ["약업", "약업신문", "약학신문", "yakup"]
 # 연예 / 예능 / 오락
 ENTERTAINMENT_HINTS = [
     "연예", "연예인", "예능", "방송", "드라마", "영화",
-    "배우", "아이돌", "가수", "뮤지컬", "공연", "문화",
-    "유튜버", "크리에이터", "특훈", "스포츠", "매달", "선수",
-    "화제", "논란", "근황", "게임",
+    "배우", "아이돌", "가수", "뮤지컬","공연", "문화",
+    "유튜버", "크리에이터","특훈","스포츠","매달","선수",
+    "화제", "논란", "근황","게임",
     "팬미팅", "콘서트",
 ]
 
@@ -71,31 +71,32 @@ PERSONNEL_HINTS = [
 # 가수 다비치
 DAVICHI_SINGER_NAMES = ["강민경", "이해리"]
 DAVICHI_SINGER_HINTS = [
-    "가수", "음원", "신곡", "컴백", "앨범", "연예인", "개그맨", "연기", "배우", "뮤지컬", "뮤지션", "1위",
-    "콘서트", "공연", "뮤직비디오", "강민경", "이해리", "개그", "듀오", "카메라", "드라마", "연극", "탤런트",
-    "차트", "유튜브", "방송", "예능", "ost", "연예", "무대", "히든싱어", "가요", "음악", "시상식", "프로그램",
+    "가수", "음원", "신곡", "컴백", "앨범", "연예인","개그맨", "연기", "배우","뮤지컬","뮤지션","1위",
+    "콘서트", "공연", "뮤직비디오","강민경","이해리","개그","듀오","카메라","드라마","연극","탤런트",
+    "차트", "유튜브", "방송", "예능", "ost", "연예","무대","히든싱어","가요","음악","시상식", "프로그램",
 ]
 
 # 얼굴/뷰티 노안
 FACE_AGING_HINTS = [
     "얼굴", "피부", "주름", "리프팅", "안티에이징",
-    "동안", "보톡스", "필러", "시술", "화장품", "뷰티", "카메라", "나이", "젊은데",
+    "동안", "보톡스", "필러", "시술", "화장품", "뷰티","카메라","나이", "젊은데",
 ]
 
 # 포털 광고/ 낚시형 요약 문구
 AD_SNIPPET_HINTS = [
     "모두가 속았다", "이걸 몰랐", "충격", "지금 확인", "알고 보니", "이유는?", "화제",
-    "논란", "깜짝", "지금 다운로드", "지금 클릭", "지금 확인",
+    "논란", "깜짝","지금 다운로드", "지금 클릭", "지금 확인",
 ]
 
 # 광학/렌즈 업계 화이트리스트
 INDUSTRY_WHITELIST = [
-    "안경", "안경원", "안경사", "호야", "에실로", "자이스", "노안 렌즈", "노안 교정",
-    "렌즈", "콘택트", "콘택트렌즈", "오렌즈", "하피크리스틴",
-    "안과", "검안", "시력", "콘택트 렌즈", "contact lens",
+    "안경", "안경원","안경사", "호야", "에실로","자이스", "노안 렌즈", "노안 교정",
+    "렌즈", "콘택트", "콘택트렌즈","오렌즈", "하피크리스틴",
+    "안과", "검안", "시력","콘택트 렌즈", "contact lens",
     "아큐브", "acuvue",
-    "존슨앤드존슨", "알콘", "쿠퍼비전", "바슈롬", "쿠퍼 비젼",
-    "인터로조", "클라렌", "쿠퍼", "렌즈미", "안경진정성"
+    "존슨앤드존슨", "알콘", "쿠퍼비전", "바슈롬","쿠퍼 비젼",
+    "인터로조", "클라렌",
+    "쿠퍼", "렌즈미", "안경진정성"
 ]
 
 
@@ -146,10 +147,6 @@ def should_exclude_article(title: str, summary: str = "") -> bool:
     if summary and len(summary) < 40:
         if not any(i in full for i in INDUSTRY_WHITELIST):
             return True
-
-    # 8) (옵션 B) 업계 무관 기사 기본 제외 ❌ 비활성
-    # if not any(i in full for i in INDUSTRY_WHITELIST):
-    #     return True
 
     return False
 
@@ -213,41 +210,6 @@ def resolve_final_url(link: str) -> str:
     return link
 
 
-def _looks_like_title_snippet(title: str, summary: str) -> bool:
-    """요약이 제목 복붙/동일 표현이면 True"""
-    t = (title or "").strip()
-    s = (summary or "").strip()
-    if not t or not s:
-        return True
-    if len(s) < 60:
-        return True
-    if t in s or s in t:
-        return True
-    # 너무 비슷한 경우 (대략적)
-    t_norm = re.sub(r"\s+", " ", t).strip().lower()
-    s_norm = re.sub(r"\s+", " ", s).strip().lower()
-    if t_norm == s_norm:
-        return True
-    return False
-
-
-def fetch_og_description(url: str, timeout: int = 8) -> str:
-    """
-    기사 페이지에서 og:description 또는 meta description을 가져와
-    RSS snippet이 빈약/제목복붙일 때 보강한다.
-    """
-    try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
-        soup = BeautifulSoup(r.text, "html.parser")
-        tag = soup.select_one('meta[property="og:description"]') or soup.select_one('meta[name="description"]')
-        if not tag:
-            return ""
-        return clean_summary(tag.get("content", "") or "")
-    except Exception:
-        return ""
-
-
 # =========================
 # Deduplication (URL + Title)
 # =========================
@@ -296,47 +258,49 @@ def deduplicate_articles(articles: List[Article]) -> List[Article]:
 
 
 # =========================
-# Google News
+# Google News (✅ 안정화 버전)
 # =========================
 def fetch_from_google_news(query, source_name, tz):
     feed = feedparser.parse(build_google_news_url(query))
     articles = []
 
     for e in getattr(feed, "entries", []):
-        title, press2 = parse_google_title_and_press(e.title)
-        summary = clean_summary(getattr(e, "summary", ""))
+        try:
+            raw_title = getattr(e, "title", "") or ""
+            title, press2 = parse_google_title_and_press(raw_title)
 
-        published = parse_rss_datetime(
-            getattr(e, "published", None) or getattr(e, "updated", None),
-            tz,
-        )
+            summary = clean_summary(getattr(e, "summary", "") or "")
+            link = resolve_final_url(getattr(e, "link", "") or "")
 
-        source = (
-            getattr(getattr(e, "source", None), "title", "")
-            or press2
-            or source_name
-        )
+            # ✅ published/updated가 없는 경우가 있어서 안전 처리
+            pub_val = getattr(e, "published", None) or getattr(e, "updated", None)
+            if pub_val:
+                published = parse_rss_datetime(pub_val, tz)
+            else:
+                # 날짜가 없으면 일단 오늘로(어제 필터에서 빠질 수 있지만, 전체 파이프라인이 죽는 것보단 낫다)
+                published = _safe_now(tz)
 
-        final_url = resolve_final_url(getattr(e, "link", ""))
-
-        # ✅ summary가 빈약하거나 제목복붙이면 og:description 보강
-        if _looks_like_title_snippet(title, summary):
-            og = fetch_og_description(final_url)
-            if og:
-                summary = og
-
-        if should_exclude_article(title, summary):
-            continue
-
-        articles.append(
-            Article(
-                title=title,
-                link=final_url,
-                published=published,
-                source=source,
-                summary=summary,
+            source = (
+                getattr(getattr(e, "source", None), "title", "")
+                or press2
+                or source_name
             )
-        )
+
+            if should_exclude_article(title, summary):
+                continue
+
+            articles.append(
+                Article(
+                    title=title,
+                    link=link,
+                    published=published,
+                    source=source,
+                    summary=summary,
+                )
+            )
+        except Exception:
+            # ✅ 한 엔트리 오류가 전체 수집을 망치지 않게
+            continue
 
     return articles
 
@@ -368,12 +332,6 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
             link = a.get("href", "")
             summary_tag = it.select_one("div.news_dsc")
             summary = summary_tag.get_text(" ", strip=True) if summary_tag else ""
-
-            # ✅ summary가 빈약하거나 제목복붙이면 og:description 보강
-            if _looks_like_title_snippet(title, summary):
-                og = fetch_og_description(link)
-                if og:
-                    summary = og
 
             if should_exclude_article(title, summary):
                 continue
@@ -438,7 +396,6 @@ def filter_out_yakup_articles(articles):
         if host in YAKUP_BLOCK_HOSTS:
             continue
 
-        # 구글뉴스 리다이렉트 등으로 host에서 못 잡는 경우 보완
         if any(t in src for t in YAKUP_BLOCK_TOKENS) or any(t in title for t in YAKUP_BLOCK_TOKENS):
             continue
 
