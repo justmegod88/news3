@@ -67,12 +67,22 @@ news_sources:
     host: opticweekly.com
   - name: 헬스조선
     host: health.chosun.com
-  - name: 뉴시스
-    host: newsis.com
+  - #name: 뉴시스
+    #host: newsis.com
   - name: 보건뉴스
     host: bosa.co.kr
   - name: 뉴스핌
     host: newspim.com
+  - name: 메디소비자뉴스
+    host: medisobizanews.com
+  - name: 메디컬투데이
+    host: mdtoday.co.kr
+  - name: 핀포인트뉴스
+    host: pinpointnews.co.kr
+  - name: 뉴스타운
+    host: newstown.co.kr
+  - name: 리걸타임즈
+    host: legaltimes.co.kr
 
   # 구글 뉴스 전체 검색
   - name: 구글 뉴스(전체)
