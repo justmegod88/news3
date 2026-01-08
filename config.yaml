@@ -69,6 +69,8 @@ news_sources:
     host: health.chosun.com
   - #name: 뉴시스
     #host: newsis.com
+  - #name: 안경계
+    #host: 
   - name: 보건뉴스
     host: bosa.co.kr
   - name: 뉴스핌
@@ -83,6 +85,14 @@ news_sources:
     host: newstown.co.kr
   - name: 리걸타임즈
     host: legaltimes.co.kr
+  - name: 안경원라이프
+    host: opticallife.co.kr
+  - name: 스마트투데이
+    host: smarttoday.co.kr
+  - name: 시선 뉴스 
+    host: sisunnews.co.kr
+
+
 
   # 구글 뉴스 전체 검색
   - name: 구글 뉴스(전체)
