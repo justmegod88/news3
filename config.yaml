@@ -41,6 +41,7 @@ keywords:
   - 안경사
   - 안경광학과
   - 안경
+  - 인터로조
 
   # 영문 병행
   - soft contact lens
@@ -114,10 +115,8 @@ exclude_sources:
 # =========================
 # 이메일 설정
 # =========================
+  
 email:
-  from: skim228@its.jnj.com
-  to:
-  email:
   from: skim228@its.jnj.com
   to:
     - skim228@its.jnj.com
