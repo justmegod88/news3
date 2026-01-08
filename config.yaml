@@ -67,10 +67,8 @@ news_sources:
     host: opticweekly.com
   - name: 헬스조선
     host: health.chosun.com
-  - #name: 뉴시스
-    #host: newsis.com
-  - #name: 안경계
-    #host: 
+  - name: 뉴시스
+    host: newsis.com
   - name: 보건뉴스
     host: bosa.co.kr
   - name: 뉴스핌
