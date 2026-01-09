@@ -13,8 +13,8 @@ from scrapers import (
     filter_yesterday_articles,
     filter_out_finance_articles,
     filter_out_yakup_articles,
-    deduplicate_articles,        # (scrapers.py의 URL+제목 dedup: 1차)
-    should_exclude_article,      # ✅ 최종 안전 필터용
+    deduplicate_articles,
+    should_exclude_article,
 )
 from categorizer import categorize_articles
 from summarizer import refine_article_summaries, summarize_overall
@@ -57,25 +57,15 @@ def _similarity(a: str, b: str) -> float:
 
 
 def _title_bucket_keys(title: str):
-    """
-    중복 후보 비교 대상을 좁히기 위한 버킷 키.
-    너무 좁으면 중복을 못 잡아서, 토큰 2~3개 조합으로 넓게 잡음.
-    """
     nt = _normalize_title(title)
     tokens = [x for x in nt.split() if len(x) >= 2]
     keys = set()
-
     if not tokens:
         return keys
-
-    # 1) 앞 2개 토큰
     keys.add(" ".join(tokens[:2]))
-    # 2) 앞 3개 토큰
     if len(tokens) >= 3:
         keys.add(" ".join(tokens[:3]))
-    # 3) 앞 1개 토큰(완전 유사 타이틀 잡기용)
     keys.add(tokens[0])
-
     return keys
 
 
@@ -131,16 +121,8 @@ def _pick_representative(group):
 
 # =========================
 # ✅ (C) 중복 제거 + 묶기
-#     ✅ 요청 반영: 코어키워드 조건 제거
-#     ✅ 수집된 기사끼리 유사도 >= 0.80 이면 그냥 중복으로 묶음
 # =========================
 def dedupe_and_group_articles(articles, threshold: float = 0.80):
-    """
-    반환: 대표 기사 리스트
-    대표 기사에는 rep.duplicates = [{source, link, title}, ...] 가 생김
-    """
-
-    # 1) URL+제목 완전 동일 기준으로 1차 그룹핑
     exact_map = {}
     for a in articles:
         url_key = _normalize_url(getattr(a, "link", ""))
@@ -150,9 +132,7 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
 
     stage1_groups = list(exact_map.values())
 
-    # 2) 요약/제목 유사도 기반 그룹 병합
-    #    - 버킷을 넓혀서(토큰 기반) 중복을 더 잘 잡음
-    buckets = {}      # bucket_key -> list[group]
+    buckets = {}
     merged_groups = []
 
     for grp in stage1_groups:
@@ -165,7 +145,6 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
         for k in bucket_keys:
             cand_groups.extend(buckets.get(k, []))
 
-        # cand_groups 중복 제거(참조 중복)
         seen_ref = set()
         uniq_cands = []
         for g in cand_groups:
@@ -181,13 +160,11 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
             ex_title = getattr(ex, "title", "") or ""
             ex_summary = getattr(ex, "summary", "") or ""
 
-            # summary가 둘 다 있으면 summary로, 아니면 title 유사도로 보조
             if base_summary and ex_summary:
                 sim = _similarity(base_summary, ex_summary)
             else:
                 sim = _similarity(base_title, ex_title)
 
-            # ✅ 핵심: 유사도만으로 병합
             if sim >= threshold:
                 existing_grp.extend(grp)
                 merged = True
@@ -198,7 +175,6 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
             for k in bucket_keys:
                 buckets.setdefault(k, []).append(grp)
 
-    # 3) 각 그룹에서 대표 선택 + duplicates 정보 생성
     representatives = []
     for grp in merged_groups:
         rep = _pick_representative(grp)
@@ -223,48 +199,27 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
 def remove_cross_category_duplicates(*category_lists):
     seen = set()
     out = []
-
     for lst in category_lists:
         new_lst = []
         for a in lst:
             url_key = _normalize_url(getattr(a, "link", ""))
             title_key = _normalize_title(getattr(a, "title", ""))
             key = (url_key, title_key)
-
             if key in seen:
                 continue
-
             seen.add(key)
             new_lst.append(a)
         out.append(new_lst)
-
     return out
 
 
 # =========================
 # ✅ (E) 3~4문장 AI 브리핑
-#     - 기사 0건이면 "요약 없음"
-#     - 기사 1개면 "이와 함께" 같은 표현 제거
 # =========================
-def build_yesterday_summary_3to4(
-    acuvue_articles,
-    company_articles,
-    product_articles,
-    trend_articles,
-    eye_health_articles,
-):
-    """
-    ✅ 어제 기사 AI 브리핑 (3~4문장) - 임원 보고용, 팩트 기반
-
-    - 기사 수가 많으면 중요 기사 위주로 요약
-    - 이미지 파일로 바로 연결되는 단순 광고는 요약에서 제외
-    - 중요도/우선순위는 전달된 리스트의 순서를 존중하되,
-      summarize_overall 내부에서 '너무 많을 때'만 중요 기사 선별을 수행
-    """
+def build_yesterday_summary_3to4(acuvue_articles, company_articles, product_articles, trend_articles, eye_health_articles):
     merged = []
     for lst in [acuvue_articles, company_articles, product_articles, trend_articles, eye_health_articles]:
         merged.extend(lst or [])
-
     return summarize_overall(merged)
 
 
@@ -272,80 +227,98 @@ def main():
     cfg = load_config()
     tz = ZoneInfo(cfg.get("timezone", "Asia/Seoul"))
 
-    # 1) 수집
-    articles = fetch_all_articles(cfg)
-
-    # 2) 약업신문 제외 + 투자/재무 제외
-    articles = filter_out_yakup_articles(articles)
-    articles = filter_out_finance_articles(articles)
-
-    # 3) 날짜 필터: 어제 기사만
-    articles = filter_yesterday_articles(articles, cfg)
-
-    # 4) 1차 중복 제거(빠른 제거: URL+제목)  ← scrapers.py
-    articles = deduplicate_articles(articles)
-
-    # 4-1) 링크가 이미지(광고 배너 등)로 바로 연결되는 기사 마킹
-    annotate_image_ads(articles)
-
-
-    # 5) 기사 요약(summary 채우기)
-    refine_article_summaries(articles)
-
-    # 6) 최종 안전 필터
-    articles = [a for a in articles if not should_exclude_article(a.title, a.summary)]
-
-    # ✅ 7) 중복 제거(요청 반영): 유사도 0.80 이상이면 중복으로 묶기
-    articles = dedupe_and_group_articles(articles, threshold=0.80)
-
-    # 8) 분류
-    categorized = categorize_articles(articles)
-
-    # 9) 카테고리 간 중복 제거
-    acuvue_list, company_list, product_list, trend_list, eye_health_list = remove_cross_category_duplicates(
-        categorized.acuvue,
-        categorized.company,
-        categorized.product,
-        categorized.trend,
-        categorized.eye_health,
-    )
-
-    # 10) 어제 기사 AI 브리핑
-    summary = build_yesterday_summary_3to4(
-        acuvue_list,
-        company_list,
-        product_list,
-        trend_list,
-        eye_health_list,
-    )
-
-    # 11) 템플릿 렌더링
-    env = Environment(loader=FileSystemLoader("."), autoescape=True)
-    template = env.get_template("template_newsletter.html")
-
-    html = template.render(
-        today_date=dt.datetime.now(tz).strftime("%Y-%m-%d"),
-        yesterday_summary=summary,
-        acuvue_articles=acuvue_list,
-        company_articles=company_list,
-        product_articles=product_list,
-        trend_articles=trend_list,
-        eye_health_articles=eye_health_list,
-    )
-
-    # 12) 메일 제목
     email = cfg["email"]
     yesterday_str = (dt.datetime.now(tz).date() - dt.timedelta(days=1)).strftime("%Y-%m-%d")
     subject_prefix = email.get("subject_prefix", "[Daily News]")
     subject = f"{subject_prefix} 어제 기사 브리핑 - {yesterday_str}"
 
-    # 13) 발송
+    # ✅ 어떤 에러가 나도 "메일 자체는" 가게 하는 fallback
+    fallback_html = f"""<!doctype html><html lang="ko"><body>
+    <h2>어제 기사 브리핑 - {yesterday_str}</h2>
+    <p>자동 생성 과정에서 오류가 발생하여 상세 본문을 구성하지 못했습니다.</p>
+    <p>GitHub Actions 로그를 확인해주세요.</p>
+    </body></html>"""
+
+    try:
+        print("[STEP 1] fetch_all_articles")
+        articles = fetch_all_articles(cfg)
+        print(f"[DEBUG] fetched: {len(articles)}")
+
+        print("[STEP 2] filter_out_yakup / finance")
+        articles = filter_out_yakup_articles(articles)
+        articles = filter_out_finance_articles(articles)
+        print(f"[DEBUG] after yakup/finance: {len(articles)}")
+
+        print("[STEP 3] filter_yesterday_articles")
+        articles = filter_yesterday_articles(articles, cfg)
+        print(f"[DEBUG] after yesterday: {len(articles)}")
+
+        print("[STEP 4] deduplicate_articles (fast)")
+        articles = deduplicate_articles(articles)
+        print(f"[DEBUG] after dedup1: {len(articles)}")
+
+        print("[STEP 4-1] annotate_image_ads (safe)")
+        annotate_image_ads(articles, timeout_connect=3.0, timeout_read=5.0, max_checks=60)
+        img_ads = sum(1 for a in articles if getattr(a, "is_image_ad", False))
+        print(f"[DEBUG] image_ads marked: {img_ads} / total: {len(articles)}")
+
+        print("[STEP 5] refine_article_summaries")
+        refine_article_summaries(articles)
+        empty_sum = sum(1 for a in articles if not (getattr(a, "summary", "") or "").strip())
+        print(f"[DEBUG] empty summaries: {empty_sum}")
+
+        print("[STEP 6] should_exclude_article")
+        articles = [a for a in articles if not should_exclude_article(a.title, a.summary)]
+        print(f"[DEBUG] after safety filter: {len(articles)}")
+
+        print("[STEP 7] dedupe_and_group_articles")
+        articles = dedupe_and_group_articles(articles, threshold=0.80)
+        print(f"[DEBUG] after dedup2(group): {len(articles)}")
+
+        print("[STEP 8] categorize_articles")
+        categorized = categorize_articles(articles)
+
+        print("[STEP 9] remove_cross_category_duplicates")
+        acuvue_list, company_list, product_list, trend_list, eye_health_list = remove_cross_category_duplicates(
+            categorized.acuvue,
+            categorized.company,
+            categorized.product,
+            categorized.trend,
+            categorized.eye_health,
+        )
+        print("[DEBUG] category counts:",
+              len(acuvue_list), len(company_list), len(product_list), len(trend_list), len(eye_health_list))
+
+        print("[STEP 10] build_yesterday_summary_3to4")
+        summary = build_yesterday_summary_3to4(acuvue_list, company_list, product_list, trend_list, eye_health_list)
+        print(f"[DEBUG] overall summary length: {len(summary or '')}")
+
+        print("[STEP 11] template render")
+        env = Environment(loader=FileSystemLoader("."), autoescape=True)
+        template = env.get_template("template_newsletter.html")
+
+        html = template.render(
+            today_date=dt.datetime.now(tz).strftime("%Y-%m-%d"),
+            yesterday_summary=summary,
+            acuvue_articles=acuvue_list,
+            company_articles=company_list,
+            product_articles=product_list,
+            trend_articles=trend_list,
+            eye_health_articles=eye_health_list,
+        )
+
+    except Exception as e:
+        print("[ERROR] pipeline failed:", repr(e))
+        html = fallback_html
+
+    print("[STEP 12] send_email_html")
     send_email_html(
         subject=subject,
         html_body=html,
         from_addr=email["from"],
         to_addrs=email["to"],
     )
+    print("[DONE] send_email_html called")
 
 
 if __name__ == "__main__":
