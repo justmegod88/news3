@@ -2,12 +2,8 @@ name: Daily News Newsletter
 
 on:
   schedule:
-  # - cron: "0 23 * * *"  
-  # 매일 UTC 23:00 = 한국시간 오전 8:00
-   
-    - cron: "50 0 * * *"  
-    # 매일 UTC 00:50 = 한국시간 09:50
- 
+    # ✅ 매일 UTC 01:00 = 한국시간(KST) 오전 10:00
+    - cron: "0 1 * * *"
   workflow_dispatch:
 
 jobs:
@@ -28,8 +24,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # ✅ 실제 실행 시각을 로그로 확인 (UTC & KST 같이 출력)
+      - name: Debug time (UTC & KST)
+        run: |
+          echo "UTC now: $(date -u)"
+          echo "KST now: $(TZ=Asia/Seoul date)"
+
       - name: Run newsletter script
         env:
+          TZ: Asia/Seoul
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: |
