@@ -117,9 +117,6 @@ exclude_sources:
 email:
   from: skim228@its.jnj.com
   to:
-  email:
-  from: skim228@its.jnj.com
-  to:
     - skim228@its.jnj.com
     - ELee29@ITS.JNJ.com
     - ylee73@ITS.JNJ.com
