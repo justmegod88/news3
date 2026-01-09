@@ -16,7 +16,7 @@ from scrapers import (
     should_exclude_article,      # ✅ 최종 안전 필터용
 )
 from categorizer import categorize_articles
-from summarizer import refine_article_summaries, summarize_overall  # ✅ 추가
+from summarizer import refine_article_summaries
 from mailer import send_email_html
 
 
@@ -130,6 +130,8 @@ def _pick_representative(group):
 
 # =========================
 # ✅ (C) 중복 제거 + 묶기
+#     ✅ 요청 반영: 코어키워드 조건 제거
+#     ✅ 수집된 기사끼리 유사도 >= 0.80 이면 그냥 중복으로 묶음
 # =========================
 def dedupe_and_group_articles(articles, threshold: float = 0.80):
     """
@@ -148,6 +150,7 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
     stage1_groups = list(exact_map.values())
 
     # 2) 요약/제목 유사도 기반 그룹 병합
+    #    - 버킷을 넓혀서(토큰 기반) 중복을 더 잘 잡음
     buckets = {}      # bucket_key -> list[group]
     merged_groups = []
 
@@ -183,6 +186,7 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
             else:
                 sim = _similarity(base_title, ex_title)
 
+            # ✅ 핵심: 유사도만으로 병합
             if sim >= threshold:
                 existing_grp.extend(grp)
                 merged = True
@@ -237,26 +241,69 @@ def remove_cross_category_duplicates(*category_lists):
 
 
 # =========================
-# ✅ (E) "어제 기사 AI 브리핑"용 입력 리스트 만들기
-# - 네 말대로 "위쪽 분류가 더 중요"하니까 순서를 이렇게 줌:
-#   ACUVUE → Company → Product → Trend → Eye Health
+# ✅ (E) 3~4문장 AI 브리핑
+#     - 기사 0건이면 "요약 없음"
+#     - 기사 1개면 "이와 함께" 같은 표현 제거
 # =========================
-def build_brief_input(
+def build_yesterday_summary_3to4(
     acuvue_articles,
     company_articles,
     product_articles,
     trend_articles,
     eye_health_articles,
-    max_items: int = 12,
 ):
-    ordered = (
-        list(acuvue_articles)
-        + list(company_articles)
-        + list(product_articles)
-        + list(trend_articles)
-        + list(eye_health_articles)
+    total = (
+        len(acuvue_articles)
+        + len(company_articles)
+        + len(product_articles)
+        + len(trend_articles)
+        + len(eye_health_articles)
     )
-    return ordered[:max_items]
+
+    if total == 0:
+        return "어제는 수집된 기사가 없어 주요 이슈를 요약할 내용이 없습니다."
+
+    sentences = []
+
+    # ACUVUE 문장(있을 때만)
+    if acuvue_articles:
+        titles = [a.title for a in acuvue_articles[:2]]
+        sentences.append(
+            "어제 기사 중 ACUVUE 관련 내용으로는 "
+            + " / ".join(titles)
+            + " 등이 주요하게 다뤄졌습니다."
+        )
+
+    category_points = []
+    if company_articles:
+        category_points.append("경쟁사 및 업체별 활동")
+    if product_articles:
+        category_points.append("제품 카테고리별 이슈")
+    if trend_articles:
+        category_points.append("업계 전반 동향")
+    if eye_health_articles:
+        category_points.append("눈 건강 및 캠페인 관련 움직임")
+
+    # ✅ 문장 수/기사 수에 따라 자연스럽게
+    if category_points:
+        # ACUVUE 문장이 이미 있으면 "이와 함께", 없으면 그냥 시작
+        prefix = "이와 함께 " if sentences else ""
+
+        if total == 1:
+            # 기사 1개면 단일 문장(어색한 연결어 제거)
+            sentences.append(f"어제는 {category_points[0]} 관련 기사 1건이 확인되었습니다.")
+        elif len(category_points) == 1:
+            sentences.append(f"{prefix}{category_points[0]} 관련 기사가 확인되었습니다.")
+        else:
+            sentences.append(f"{prefix}{', '.join(category_points)} 관련 기사들이 확인되었습니다.")
+
+    # 총평은 기사 충분할 때만
+    if total >= 3:
+        sentences.append(
+            "전반적으로 시장 및 경쟁 환경의 변화가 향후 전략 수립 시 참고할 만한 흐름으로 판단됩니다."
+        )
+
+    return " ".join(sentences[:3])
 
 
 def main():
@@ -282,7 +329,7 @@ def main():
     # 6) 최종 안전 필터
     articles = [a for a in articles if not should_exclude_article(a.title, a.summary)]
 
-    # 7) 중복 제거(요청 반영): 유사도 0.80 이상이면 중복으로 묶기
+    # ✅ 7) 중복 제거(요청 반영): 유사도 0.80 이상이면 중복으로 묶기
     articles = dedupe_and_group_articles(articles, threshold=0.80)
 
     # 8) 분류
@@ -297,16 +344,14 @@ def main():
         categorized.eye_health,
     )
 
-    # ✅ 10) 어제 기사 AI 브리핑 (고정 멘트 제거 → summarize_overall 사용)
-    brief_input = build_brief_input(
+    # 10) 어제 기사 AI 브리핑
+    summary = build_yesterday_summary_3to4(
         acuvue_list,
         company_list,
         product_list,
         trend_list,
         eye_health_list,
-        max_items=12,
     )
-    summary = summarize_overall(brief_input)
 
     # 11) 템플릿 렌더링
     env = Environment(loader=FileSystemLoader("."), autoescape=True)
@@ -314,7 +359,7 @@ def main():
 
     html = template.render(
         today_date=dt.datetime.now(tz).strftime("%Y-%m-%d"),
-        yesterday_summary=summary,  # ✅ AI 요약 결과로 교체됨
+        yesterday_summary=summary,
         acuvue_articles=acuvue_list,
         company_articles=company_list,
         product_articles=product_list,
