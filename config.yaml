@@ -23,7 +23,7 @@ keywords:
   - 토릭렌즈
   - 멀티포컬렌즈
   - 다초점 렌즈
-  #- 호야 렌즈
+  - 호야 렌즈
   - 자이스 렌즈
   - 콘택트렌즈
   - 으뜸50
@@ -41,8 +41,6 @@ keywords:
   - 안경사
   - 안경광학과
   - 안경
-  - 인터로조
-  - 누진렌즈
 
   # 영문 병행
   - soft contact lens
@@ -116,8 +114,10 @@ exclude_sources:
 # =========================
 # 이메일 설정
 # =========================
-  
 email:
+  from: skim228@its.jnj.com
+  to:
+  email:
   from: skim228@its.jnj.com
   to:
     - skim228@its.jnj.com
