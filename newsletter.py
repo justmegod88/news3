@@ -8,6 +8,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from scrapers import (
     load_config,
+    annotate_image_ads,
     fetch_all_articles,
     filter_yesterday_articles,
     filter_out_finance_articles,
@@ -16,7 +17,7 @@ from scrapers import (
     should_exclude_article,      # ✅ 최종 안전 필터용
 )
 from categorizer import categorize_articles
-from summarizer import refine_article_summaries
+from summarizer import refine_article_summaries, summarize_overall
 from mailer import send_email_html
 
 
@@ -252,58 +253,19 @@ def build_yesterday_summary_3to4(
     trend_articles,
     eye_health_articles,
 ):
-    total = (
-        len(acuvue_articles)
-        + len(company_articles)
-        + len(product_articles)
-        + len(trend_articles)
-        + len(eye_health_articles)
-    )
+    """
+    ✅ 어제 기사 AI 브리핑 (3~4문장) - 임원 보고용, 팩트 기반
 
-    if total == 0:
-        return "어제는 수집된 기사가 없어 주요 이슈를 요약할 내용이 없습니다."
+    - 기사 수가 많으면 중요 기사 위주로 요약
+    - 이미지 파일로 바로 연결되는 단순 광고는 요약에서 제외
+    - 중요도/우선순위는 전달된 리스트의 순서를 존중하되,
+      summarize_overall 내부에서 '너무 많을 때'만 중요 기사 선별을 수행
+    """
+    merged = []
+    for lst in [acuvue_articles, company_articles, product_articles, trend_articles, eye_health_articles]:
+        merged.extend(lst or [])
 
-    sentences = []
-
-    # ACUVUE 문장(있을 때만)
-    if acuvue_articles:
-        titles = [a.title for a in acuvue_articles[:2]]
-        sentences.append(
-            "어제 기사 중 ACUVUE 관련 내용으로는 "
-            + " / ".join(titles)
-            + " 등이 주요하게 다뤄졌습니다."
-        )
-
-    category_points = []
-    if company_articles:
-        category_points.append("경쟁사 및 업체별 활동")
-    if product_articles:
-        category_points.append("제품 카테고리별 이슈")
-    if trend_articles:
-        category_points.append("업계 전반 동향")
-    if eye_health_articles:
-        category_points.append("눈 건강 및 캠페인 관련 움직임")
-
-    # ✅ 문장 수/기사 수에 따라 자연스럽게
-    if category_points:
-        # ACUVUE 문장이 이미 있으면 "이와 함께", 없으면 그냥 시작
-        prefix = "이와 함께 " if sentences else ""
-
-        if total == 1:
-            # 기사 1개면 단일 문장(어색한 연결어 제거)
-            sentences.append(f"어제는 {category_points[0]} 관련 기사 1건이 확인되었습니다.")
-        elif len(category_points) == 1:
-            sentences.append(f"{prefix}{category_points[0]} 관련 기사가 확인되었습니다.")
-        else:
-            sentences.append(f"{prefix}{', '.join(category_points)} 관련 기사들이 확인되었습니다.")
-
-    # 총평은 기사 충분할 때만
-    if total >= 3:
-        sentences.append(
-            "전반적으로 시장 및 경쟁 환경의 변화가 향후 전략 수립 시 참고할 만한 흐름으로 판단됩니다."
-        )
-
-    return " ".join(sentences[:3])
+    return summarize_overall(merged)
 
 
 def main():
@@ -322,6 +284,10 @@ def main():
 
     # 4) 1차 중복 제거(빠른 제거: URL+제목)  ← scrapers.py
     articles = deduplicate_articles(articles)
+
+    # 4-1) 링크가 이미지(광고 배너 등)로 바로 연결되는 기사 마킹
+    annotate_image_ads(articles)
+
 
     # 5) 기사 요약(summary 채우기)
     refine_article_summaries(articles)

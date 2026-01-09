@@ -33,6 +33,8 @@ class Article:
     summary: str
     image_url: Optional[str] = None
     is_naver: bool = False
+    is_image_ad: bool = False  # 링크가 이미지(광고 배너 등)로 바로 떨어지는 경우
+    content_type: Optional[str] = None
 
 
 # =========================
@@ -210,6 +212,64 @@ def resolve_final_url(link: str) -> str:
         pass
     return link
 
+
+
+# =========================
+# Link type check (image-only ad)
+# =========================
+_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".svg")
+
+def _looks_like_image_url(url: str) -> bool:
+    try:
+        path = urlparse(url).path.lower()
+        return any(path.endswith(ext) for ext in _IMAGE_EXTS)
+    except Exception:
+        return False
+
+def detect_content_type(url: str, timeout: int = 8) -> str:
+    """가볍게 HEAD로 Content-Type만 확인 (리다이렉트 허용)."""
+    if not url:
+        return ""
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        r = requests.head(url, headers=headers, allow_redirects=True, timeout=timeout)
+        ct = (r.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        return ct
+    except Exception:
+        return ""
+
+def annotate_image_ads(articles: List["Article"]) -> List["Article"]:
+    """기사 링크가 이미지 파일로 바로 연결되는 경우(is_image_ad=True)로 마킹.
+    - URL 확장자 우선
+    - 아니면 HEAD Content-Type 확인(image/*)
+    """
+    # 중복 링크는 한번만 체크
+    cache = {}
+    for a in articles:
+        link = getattr(a, "link", "") or ""
+        if not link:
+            continue
+
+        if link in cache:
+            is_img, ct = cache[link]
+        else:
+            if _looks_like_image_url(link):
+                is_img, ct = True, "image/*"
+            else:
+                ct = detect_content_type(link)
+                is_img = bool(ct.startswith("image/"))
+            cache[link] = (is_img, ct)
+
+        try:
+            a.is_image_ad = bool(is_img)
+            a.content_type = ct or getattr(a, "content_type", None)
+            # 이미지 광고면 summary는 굳이 채우지 않음(타이틀만 노출)
+            if a.is_image_ad:
+                a.summary = (getattr(a, "summary", "") or "").strip()  # 원문이 있으면 유지, 없으면 빈 값
+        except Exception:
+            pass
+
+    return articles
 
 # =========================
 # Deduplication (URL + Title)
