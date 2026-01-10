@@ -16,7 +16,7 @@ from scrapers import (
     should_exclude_article,      # ✅ 최종 안전 필터용
 )
 from categorizer import categorize_articles
-from summarizer import refine_article_summaries
+from summarizer import refine_article_summaries, summarize_overall
 from mailer import send_email_html
 
 
@@ -67,12 +67,9 @@ def _title_bucket_keys(title: str):
     if not tokens:
         return keys
 
-    # 1) 앞 2개 토큰
     keys.add(" ".join(tokens[:2]))
-    # 2) 앞 3개 토큰
     if len(tokens) >= 3:
         keys.add(" ".join(tokens[:3]))
-    # 3) 앞 1개 토큰(완전 유사 타이틀 잡기용)
     keys.add(tokens[0])
 
     return keys
@@ -130,16 +127,12 @@ def _pick_representative(group):
 
 # =========================
 # ✅ (C) 중복 제거 + 묶기
-#     ✅ 요청 반영: 코어키워드 조건 제거
-#     ✅ 수집된 기사끼리 유사도 >= 0.80 이면 그냥 중복으로 묶음
 # =========================
 def dedupe_and_group_articles(articles, threshold: float = 0.80):
     """
     반환: 대표 기사 리스트
     대표 기사에는 rep.duplicates = [{source, link, title}, ...] 가 생김
     """
-
-    # 1) URL+제목 완전 동일 기준으로 1차 그룹핑
     exact_map = {}
     for a in articles:
         url_key = _normalize_url(getattr(a, "link", ""))
@@ -149,9 +142,7 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
 
     stage1_groups = list(exact_map.values())
 
-    # 2) 요약/제목 유사도 기반 그룹 병합
-    #    - 버킷을 넓혀서(토큰 기반) 중복을 더 잘 잡음
-    buckets = {}      # bucket_key -> list[group]
+    buckets = {}
     merged_groups = []
 
     for grp in stage1_groups:
@@ -164,7 +155,6 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
         for k in bucket_keys:
             cand_groups.extend(buckets.get(k, []))
 
-        # cand_groups 중복 제거(참조 중복)
         seen_ref = set()
         uniq_cands = []
         for g in cand_groups:
@@ -180,13 +170,11 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
             ex_title = getattr(ex, "title", "") or ""
             ex_summary = getattr(ex, "summary", "") or ""
 
-            # summary가 둘 다 있으면 summary로, 아니면 title 유사도로 보조
             if base_summary and ex_summary:
                 sim = _similarity(base_summary, ex_summary)
             else:
                 sim = _similarity(base_title, ex_title)
 
-            # ✅ 핵심: 유사도만으로 병합
             if sim >= threshold:
                 existing_grp.extend(grp)
                 merged = True
@@ -197,7 +185,6 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
             for k in bucket_keys:
                 buckets.setdefault(k, []).append(grp)
 
-    # 3) 각 그룹에서 대표 선택 + duplicates 정보 생성
     representatives = []
     for grp in merged_groups:
         rep = _pick_representative(grp)
@@ -241,69 +228,85 @@ def remove_cross_category_duplicates(*category_lists):
 
 
 # =========================
-# ✅ (E) 3~4문장 AI 브리핑
-#     - 기사 0건이면 "요약 없음"
-#     - 기사 1개면 "이와 함께" 같은 표현 제거
+# ✅ (E) 전체 브리핑 입력용 기사 선택 (카테고리 분산 + 빈 summary 제외)
 # =========================
-def build_yesterday_summary_3to4(
+def _has_summary(a) -> bool:
+    s = (getattr(a, "summary", "") or "").strip()
+    return len(s) > 0
+
+
+def select_articles_for_brief(
+    acuvue_articles,
+    company_articles,
+    product_articles,
+    trend_articles,
+    eye_health_articles,
+    max_items: int = 10,
+):
+    """
+    - 광고/단순 이미지로 summary가 빈 값인 기사는 제외
+    - '맨 위가 더 중요해 보이는' 편향 줄이기 위해 카테고리별로 1~2개씩 분산 선택
+    - 그래도 부족하면 남은 기사에서 순서대로 채움
+    """
+    pools = [
+        ("ACUVUE", [a for a in (acuvue_articles or []) if _has_summary(a)]),
+        ("Company", [a for a in (company_articles or []) if _has_summary(a)]),
+        ("Trend", [a for a in (trend_articles or []) if _has_summary(a)]),
+        ("Product", [a for a in (product_articles or []) if _has_summary(a)]),
+        ("EyeHealth", [a for a in (eye_health_articles or []) if _has_summary(a)]),
+    ]
+
+    # 1) 라운드 로빈으로 카테고리 분산 선택
+    selected = []
+    idx = 0
+    while len(selected) < max_items:
+        added_any = False
+        for _, lst in pools:
+            if idx < len(lst) and len(selected) < max_items:
+                selected.append(lst[idx])
+                added_any = True
+        if not added_any:
+            break
+        idx += 1
+
+    # 2) 혹시 중복 URL/제목이 끼었으면 제거 (안전)
+    seen = set()
+    deduped = []
+    for a in selected:
+        key = (_normalize_url(getattr(a, "link", "")), _normalize_title(getattr(a, "title", "")))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(a)
+
+    return deduped[:max_items]
+
+
+# =========================
+# ✅ (F) "진짜 AI 요약" 브리핑 생성 (Top3 하이라이트 / 문장수 자동조절)
+# =========================
+def build_yesterday_ai_brief(
     acuvue_articles,
     company_articles,
     product_articles,
     trend_articles,
     eye_health_articles,
 ):
-    total = (
-        len(acuvue_articles)
-        + len(company_articles)
-        + len(product_articles)
-        + len(trend_articles)
-        + len(eye_health_articles)
+    # 입력 기사 선택 (빈 summary 제외)
+    picked = select_articles_for_brief(
+        acuvue_articles,
+        company_articles,
+        product_articles,
+        trend_articles,
+        eye_health_articles,
+        max_items=10,
     )
 
-    if total == 0:
+    if not picked:
         return "어제는 수집된 기사가 없어 주요 이슈를 요약할 내용이 없습니다."
 
-    sentences = []
-
-    # ACUVUE 문장(있을 때만)
-    if acuvue_articles:
-        titles = [a.title for a in acuvue_articles[:2]]
-        sentences.append(
-            "어제 기사 중 ACUVUE 관련 내용으로는 "
-            + " / ".join(titles)
-            + " 등이 주요하게 다뤄졌습니다."
-        )
-
-    category_points = []
-    if company_articles:
-        category_points.append("경쟁사 및 업체별 활동")
-    if product_articles:
-        category_points.append("제품 카테고리별 이슈")
-    if trend_articles:
-        category_points.append("업계 전반 동향")
-    if eye_health_articles:
-        category_points.append("눈 건강 및 캠페인 관련 움직임")
-
-    # ✅ 문장 수/기사 수에 따라 자연스럽게
-    if category_points:
-        # ACUVUE 문장이 이미 있으면 "이와 함께", 없으면 그냥 시작
-        prefix = "이와 함께 " if sentences else ""
-
-        if total == 1:
-            # 기사 1개면 단일 문장(어색한 연결어 제거)
-            sentences.append(f"어제는 {category_points[0]} 관련 기사 1건이 확인되었습니다.")
-        elif len(category_points) == 1:
-            sentences.append(f"{prefix}{category_points[0]} 관련 기사가 확인되었습니다.")
-        else:
-            sentences.append(f"{prefix}{', '.join(category_points)} 관련 기사들이 확인되었습니다.")
-
-    # 총평은 기사 충분할 때만
-    if total >= 3:
-        sentences.append(
-            "전반적으로 시장 및 경쟁 환경의 변화가 향후 전략 수립 시 참고할 만한 흐름으로 판단됩니다."
-        )
-
-    return " ".join(sentences[:3])
+    # ✅ 기사별(정제된) title + summary를 재료로 Top3 하이라이트 생성
+    return summarize_overall(picked)
 
 
 def main():
@@ -320,16 +323,16 @@ def main():
     # 3) 날짜 필터: 어제 기사만
     articles = filter_yesterday_articles(articles, cfg)
 
-    # 4) 1차 중복 제거(빠른 제거: URL+제목)  ← scrapers.py
+    # 4) 1차 중복 제거(빠른 제거: URL+제목)
     articles = deduplicate_articles(articles)
 
-    # 5) 기사 요약(summary 채우기)
+    # 5) 기사별 요약(summary 정제/생성)
     refine_article_summaries(articles)
 
     # 6) 최종 안전 필터
     articles = [a for a in articles if not should_exclude_article(a.title, a.summary)]
 
-    # ✅ 7) 중복 제거(요청 반영): 유사도 0.80 이상이면 중복으로 묶기
+    # 7) 유사도 기반 묶기
     articles = dedupe_and_group_articles(articles, threshold=0.80)
 
     # 8) 분류
@@ -344,8 +347,8 @@ def main():
         categorized.eye_health,
     )
 
-    # 10) 어제 기사 AI 브리핑
-    summary = build_yesterday_summary_3to4(
+    # ✅ 10) 어제 기사 브리핑(진짜 AI 요약)
+    summary = build_yesterday_ai_brief(
         acuvue_list,
         company_list,
         product_list,
