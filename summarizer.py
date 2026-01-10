@@ -25,75 +25,6 @@ def _get_client():
 
 
 # =========================
-# Executive overall brief (어제 기사 브리핑)
-# =========================
-def _fallback_summary(articles: List, max_chars: int = 320) -> str:
-    if not articles:
-        return "어제 기준으로 수집된 관련 기사가 없어 별도 공유 사항은 없습니다."
-
-    titles = [getattr(a, "title", "") for a in articles][:3]
-    titles = [t.strip() for t in titles if t and t.strip()]
-    if not titles:
-        return "어제 기준으로 수집된 관련 기사가 있어 확인이 필요합니다."
-
-    txt = " / ".join(titles)
-    out = f"어제 주요 기사: {txt}"
-    return out[:max_chars]
-
-
-def summarize_overall(articles: List) -> str:
-    """
-    ✅ 임원용 '어제 기사 AI 브리핑'
-    - 입력된 기사 리스트만 요약
-    - 최대 3~4문장, 너무 길면 컷
-    """
-    if not articles:
-        return "어제 기준으로 수집된 관련 기사가 없어 별도 공유 사항은 없습니다."
-
-    client = _get_client()
-    if client is None:
-        return _fallback_summary(articles)
-
-    items = []
-    for a in articles[:8]:
-        t = getattr(a, "title", "") or ""
-        s = getattr(a, "summary", "") or ""
-        s = re.sub(r"\s+", " ", s).strip()
-        if len(s) > 240:
-            s = s[:240] + "…"
-        items.append(f"- {t} :: {s}")
-
-    content = "\n".join(items)
-
-    prompt = f"""
-너는 콘택트렌즈/안경 업계 데일리 뉴스레터를 임원에게 보고하는 비서야.
-아래 기사들만 근거로, 3~4문장으로 짧게 브리핑해줘.
-
-규칙:
-- 과장/추측 금지, 기사에 명시된 사실만 사용
-- 너무 길면 300자 내로 자연스럽게 줄여
-- 쉼표로 길게 늘어놓지 말고 문장 3~4개로
-
-[기사 목록]
-{content}
-""".strip()
-
-    try:
-        r = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-        )
-        text = (r.choices[0].message.content or "").strip()
-        text = re.sub(r"\s+\n", "\n", text).strip()
-        if len(text) > 340:
-            text = text[:340].rstrip() + "…"
-        return text or _fallback_summary(articles)
-    except Exception:
-        return _fallback_summary(articles)
-
-
-# =========================
 # Helpers
 # =========================
 def _norm_text(s: str) -> str:
@@ -112,14 +43,12 @@ def _is_image_file_url(url: str) -> bool:
 
 def _is_meaningless_summary(summary: str) -> bool:
     """
-    summary가 사실상 '내용 없음'에 가까운 문구인지 판별.
-    (너무 공격적으로 잡지 않게 보수적으로 구성)
+    summary가 사실상 '내용 없음'에 가까운 문구인지 판별(보수적).
     """
     s = _norm_text(summary).lower()
     if not s:
         return True
 
-    # 너무 짧고 의미 없는 흔한 문구들
     meaningless_patterns = [
         "자세한 내용", "자세히 보기", "자세히보기",
         "기사 보기", "기사보기", "원문 보기", "원문보기",
@@ -129,7 +58,6 @@ def _is_meaningless_summary(summary: str) -> bool:
         "클릭", "확인",
     ]
 
-    # 완전히 짧은 경우
     if len(s) < 12:
         return True
 
@@ -137,9 +65,10 @@ def _is_meaningless_summary(summary: str) -> bool:
         if p in s and len(s) <= 30:
             return True
 
-    # URL만 있거나 특수문자/기호 중심
     if re.fullmatch(r"(https?://\S+)", s):
         return True
+
+    # 특수문자 비중이 너무 높은 경우
     if len(re.sub(r"[a-z0-9가-힣]", "", s)) / max(len(s), 1) > 0.65:
         return True
 
@@ -149,8 +78,6 @@ def _is_meaningless_summary(summary: str) -> bool:
 def _is_summary_same_as_title(title: str, summary: str) -> bool:
     """
     summary가 title과 동일/사실상 동일인지.
-    - 완전 동일
-    - title 포함/역포함 + 길이 차이 거의 없음
     """
     t = _norm_text(title)
     s = _norm_text(summary)
@@ -160,12 +87,10 @@ def _is_summary_same_as_title(title: str, summary: str) -> bool:
     if t == s:
         return True
 
-    # 포함 관계 + 길이 차이 거의 없으면 동일 취급
     if t in s or s in t:
         if abs(len(t) - len(s)) <= 12:
             return True
 
-    # 괄호/대괄호 제거 후 동일
     t2 = re.sub(r"[\[\(].*?[\]\)]", "", t).strip()
     s2 = re.sub(r"[\[\(].*?[\]\)]", "", s).strip()
     if t2 and s2 and t2 == s2:
@@ -196,9 +121,7 @@ def _fetch_html(url: str, timeout=(3.0, 6.0)) -> Optional[str]:
 
 def _extract_text_and_imgcount(html: str, max_chars: int = 3000) -> tuple[str, int]:
     """
-    아주 가벼운 본문 텍스트 추출.
-    - 정교한 본문 추출기 아님
-    - 목적: "텍스트가 거의 없는 이미지 페이지" 판별 + 텍스트 요약 재료 확보
+    가벼운 본문 텍스트 추출 (광고 판별 + 요약 재료 확보 목적)
     """
     soup = BeautifulSoup(html or "", "html.parser")
 
@@ -219,21 +142,18 @@ def _extract_text_and_imgcount(html: str, max_chars: int = 3000) -> tuple[str, i
 
 def _is_image_only_ad_page(text: str, img_count: int) -> bool:
     """
-    "이미지만 있는 광고" 판정 (보수적):
-    - 텍스트가 거의 없고(img는 존재) => 이미지 위주 페이지로 간주
+    "이미지만 있는 광고" 판정(보수적).
     """
     t = _norm_text(text)
-    # 텍스트가 매우 짧고 이미지가 있으면 광고/배너 가능성 큼
     if len(t) < 40 and img_count >= 1:
         return True
-    # 텍스트가 거의 없다면(이미지 수 무관) 이미지/링크 모음일 가능성
     if len(t) < 20:
         return True
     return False
 
 
 # =========================
-# OpenAI prompts (3종)
+# OpenAI calls / prompts
 # =========================
 def _call_openai_2to3_sentences(client, prompt: str, max_chars: int = 220) -> str:
     r = client.chat.completions.create(
@@ -250,7 +170,6 @@ def _call_openai_2to3_sentences(client, prompt: str, max_chars: int = 220) -> st
 
 
 def _prompt_compress_long_summary(title: str, summary: str) -> str:
-    # 1) summary가 길게 존재 -> 2~3문장 압축 요약
     return f"""
 너는 업계 데일리 뉴스레터 편집자다.
 아래 [요약문]을 "2~3문장"으로 압축하라.
@@ -275,7 +194,6 @@ def _prompt_compress_long_summary(title: str, summary: str) -> str:
 
 
 def _prompt_title_only(title: str) -> str:
-    # 2) summary=title -> 제목 정보 범위 내에서만 2~3문장 정리 (추측 절대 금지)
     return f"""
 너는 뉴스 요약을 보조하는 편집자다.
 ⚠️ 이 작업은 매우 제한적인 작업이다.
@@ -310,7 +228,6 @@ def _prompt_title_only(title: str) -> str:
 
 
 def _prompt_summarize_from_body(title: str, body_text: str) -> str:
-    # 3) summary 없음 -> 본문 텍스트 기반 2~3문장 요약
     return f"""
 너는 업계 데일리 뉴스레터 편집자다.
 아래 [기사 본문]에 명시된 내용만 근거로 2~3문장 요약을 작성하라.
@@ -335,24 +252,22 @@ def _prompt_summarize_from_body(title: str, body_text: str) -> str:
 
 
 # =========================
-# ✅ Main: refine per-article summary (네 정책 1/2/3 구현)
+# ✅ A. 기사별 summary 정제/생성
 # =========================
 def refine_article_summaries(articles: List) -> None:
     """
-    ✅ 각 기사 summary 정책 (네가 확정한 버전)
+    ✅ 각 기사 summary 정책(확정본)
 
     1) summary가 길게 존재 -> OpenAI로 2~3문장 "압축 요약"
-    2) summary가 title과 동일(사실상 동일) -> OpenAI로 2~3문장 (제목 정보 범위 내에서만 / 추측 절대 금지)
+    2) summary가 title과 동일(사실상 동일) -> OpenAI로 2~3문장 (제목 정보 범위 내 / 추측 절대 금지)
     3) summary가 아예 없음(또는 의미없는 수준) -> 본문 확인
        3-1) 이미지만 있는 광고 -> summary는 "빈값"
        3-2) 본문 텍스트(+이미지) -> OpenAI로 2~3문장 요약
-
-    공통: 최종 summary는 220자 내로 유지
+    공통: 최종 summary는 220자 내
     """
     client = _get_client()
 
-    # 정책 파라미터(필요하면 조절)
-    LONG_SUMMARY_THRESHOLD = 260   # "길다" 기준(원문 summary가 이 이상이면 압축 요약)
+    LONG_SUMMARY_THRESHOLD = 260
     MAX_SUMMARY_CHARS = 220
 
     for a in articles:
@@ -361,8 +276,7 @@ def refine_article_summaries(articles: List) -> None:
         summary = _norm_text(summary_raw)
         link = (getattr(a, "link", "") or "").strip()
 
-        # (추가 보호) 링크가 이미지 파일 자체면: 광고/배너 가능성이 높으므로 summary는 빈값
-        # ※ 너가 "빈값" 선택했으니 title로 덮지 않고 빈값 유지
+        # 링크가 이미지 파일이면: 광고/배너로 보고 summary는 빈값
         if _is_image_file_url(link):
             try:
                 a.summary = ""
@@ -370,12 +284,11 @@ def refine_article_summaries(articles: List) -> None:
                 pass
             continue
 
-        # 3) summary 없음(또는 의미없는 수준) -> 본문 확인
+        # 3) summary 없음/무의미 -> 본문 확인
         if not summary or _is_meaningless_summary(summary):
-            # 본문 1회 확인
             html = _fetch_html(link)
             if not html:
-                # 본문을 못 가져오면 판단 불가 -> 빈값 유지(추측 금지)
+                # 본문을 못 가져오면 추측 금지 -> 빈값
                 try:
                     a.summary = ""
                 except Exception:
@@ -384,7 +297,7 @@ def refine_article_summaries(articles: List) -> None:
 
             body_text, img_count = _extract_text_and_imgcount(html)
 
-            # 3-1) 이미지만 있는 광고 -> summary 빈값
+            # 3-1) 이미지만 광고 -> 빈값
             if _is_image_only_ad_page(body_text, img_count):
                 try:
                     a.summary = ""
@@ -392,17 +305,15 @@ def refine_article_summaries(articles: List) -> None:
                     pass
                 continue
 
-            # 3-2) 본문 텍스트 존재 -> AI 요약(가능할 때만)
+            # 3-2) 본문 텍스트 -> AI 요약(가능하면)
             if client is not None:
                 try:
                     prompt = _prompt_summarize_from_body(title, body_text)
-                    new_sum = _call_openai_2to3_sentences(client, prompt, max_chars=MAX_SUMMARY_CHARS)
-                    summary = new_sum
+                    summary = _call_openai_2to3_sentences(client, prompt, max_chars=MAX_SUMMARY_CHARS)
                 except Exception:
-                    # 실패 시: 본문 일부를 그대로(추측 없이) 짧게 표시
+                    # 실패 시: 본문 일부를 그대로(추측 없이) 표시
                     summary = _norm_text(body_text)[:MAX_SUMMARY_CHARS].rstrip()
             else:
-                # OpenAI 없으면: 본문 일부를 그대로(추측 없이) 짧게 표시
                 summary = _norm_text(body_text)[:MAX_SUMMARY_CHARS].rstrip()
 
             try:
@@ -411,20 +322,17 @@ def refine_article_summaries(articles: List) -> None:
                 pass
             continue
 
-        # 2) summary가 title과 동일(사실상 동일) -> 제목 정보 범위 내에서만 2~3문장
+        # 2) summary == title -> 제목 정보만으로 2~3문장(추측 절대 금지)
         if _is_summary_same_as_title(title, summary):
             if client is not None:
                 try:
                     prompt = _prompt_title_only(title)
                     summary = _call_openai_2to3_sentences(client, prompt, max_chars=200)
                 except Exception:
-                    # 실패 시: 제목 그대로(추측 금지)
                     summary = title
             else:
-                # OpenAI 없으면 제목 그대로(추측 금지)
                 summary = title
 
-            # 최종 길이 컷
             if len(summary) > MAX_SUMMARY_CHARS:
                 summary = summary[:MAX_SUMMARY_CHARS].rstrip() + "…"
 
@@ -434,19 +342,18 @@ def refine_article_summaries(articles: List) -> None:
                 pass
             continue
 
-        # 1) summary가 길게 존재 -> 2~3문장 압축 요약
+        # 1) summary가 길면 -> 압축 요약
         if len(summary) >= LONG_SUMMARY_THRESHOLD:
             if client is not None:
                 try:
                     prompt = _prompt_compress_long_summary(title, summary)
                     summary = _call_openai_2to3_sentences(client, prompt, max_chars=MAX_SUMMARY_CHARS)
                 except Exception:
-                    # 실패 시 컷
                     summary = summary[:MAX_SUMMARY_CHARS].rstrip() + "…"
             else:
                 summary = summary[:MAX_SUMMARY_CHARS].rstrip() + "…"
 
-        # 공통: 최종 길이 컷
+        # 공통: 최종 컷
         if len(summary) > MAX_SUMMARY_CHARS:
             summary = summary[:MAX_SUMMARY_CHARS].rstrip() + "…"
 
@@ -454,3 +361,106 @@ def refine_article_summaries(articles: List) -> None:
             a.summary = summary
         except Exception:
             pass
+
+
+# =========================
+# ✅ B. 전체 브리핑 (Top 하이라이트, 문장수 자동조절)
+# =========================
+def _fallback_overall(articles: List, max_chars: int = 360) -> str:
+    if not articles:
+        return "어제 기준으로 수집된 관련 기사가 없어 별도 공유 사항은 없습니다."
+
+    items = []
+    for a in articles[:3]:
+        t = (getattr(a, "title", "") or "").strip()
+        s = (getattr(a, "summary", "") or "").strip()
+        if s:
+            s = re.sub(r"\s+", " ", s)
+            s = s[:120].rstrip() + ("…" if len(s) > 120 else "")
+            items.append(f"- {t}: {s}")
+        else:
+            items.append(f"- {t}")
+    out = "어제 주요 이슈:\n" + "\n".join(items)
+    return out[:max_chars]
+
+
+def _auto_sentence_target(n_articles: int) -> int:
+    # 1개: 1문장, 2개: 2문장, 3~5개: 3문장, 6개 이상: 4문장
+    if n_articles <= 1:
+        return 1
+    if n_articles == 2:
+        return 2
+    if n_articles <= 5:
+        return 3
+    return 4
+
+
+def summarize_overall(articles: List) -> str:
+    """
+    ✅ 임원용 "어제 기사 브리핑" (Top 하이라이트)
+    - 입력: refine_article_summaries 이후의 기사들(title+summary)
+    - summary 빈값(광고 등)은 제외하는 것을 전제로 하되, 여기서도 방어적으로 제외
+    - 출력: 기사 수에 따라 1~4문장 자동
+    - 절대 추측/과장 금지 (입력 밖 정보 추가 금지)
+    """
+    if not articles:
+        return "어제 기준으로 수집된 관련 기사가 없어 별도 공유 사항은 없습니다."
+
+    client = _get_client()
+    if client is None:
+        return _fallback_overall(articles)
+
+    items = []
+    for a in articles[:10]:
+        t = (getattr(a, "title", "") or "").strip()
+        s = (getattr(a, "summary", "") or "").strip()
+        s = re.sub(r"\s+", " ", s).strip()
+
+        if len(s) > 260:
+            s = s[:260].rstrip() + "…"
+
+        if not s:
+            continue
+
+        items.append(f"- 제목: {t}\n  요약: {s}")
+
+    if not items:
+        return "어제는 수집된 기사 중 텍스트 요약이 가능한 항목이 없어, 주요 이슈를 요약할 내용이 없습니다."
+
+    target_sentences = _auto_sentence_target(len(items))
+
+    prompt = f"""
+너는 콘택트렌즈/안경 업계 데일리 뉴스레터를 임원에게 보고하는 비서다.
+아래 [기사 제목/요약]만을 근거로 "핵심 하이라이트"를 작성하라.
+
+출력 형식(중요):
+- 총 {target_sentences}문장 (문장 수 정확히 지킬 것)
+- 각 문장은 서로 다른 핵심 이슈를 한 문장으로 정리 (Top 하이라이트 느낌)
+- 과장/추측/전망/평가 금지 ("~로 보인다/~할 것으로 예상" 금지)
+- 아래 입력에 없는 사실/숫자/주체/브랜드/원인/결과를 절대 추가하지 말 것 (가장 중요)
+- 가능하면 중복 표현을 피하고, 사실만 간결하게 정리
+- 전체 420자 이내
+
+[기사 제목/요약]
+{chr(10).join(items)}
+""".strip()
+
+    try:
+        r = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+        )
+        text = (r.choices[0].message.content or "").strip()
+        text = re.sub(r"\s+\n", "\n", text).strip()
+        text = re.sub(r"\s+", " ", text).strip()
+
+        if not text:
+            return _fallback_overall(articles)
+
+        if len(text) > 420:
+            text = text[:420].rstrip() + "…"
+
+        return text
+    except Exception:
+        return _fallback_overall(articles)
