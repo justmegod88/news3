@@ -1,6 +1,7 @@
 import re
 import difflib
 from typing import List
+from urllib.parse import urlparse  # ✅ 추가: 이미지 확장자 판별용
 
 # OpenAI 사용은 선택(없어도 동작)
 try:
@@ -8,12 +9,14 @@ try:
 except Exception:
     OpenAI = None
 
+
 def _get_client():
     import os
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key or OpenAI is None:
         return None
     return OpenAI(api_key=api_key)
+
 
 def _fallback_summary(articles: List, max_chars: int = 320) -> str:
     if not articles:
@@ -27,6 +30,7 @@ def _fallback_summary(articles: List, max_chars: int = 320) -> str:
     txt = " / ".join(titles)
     out = f"어제 주요 기사: {txt}"
     return out[:max_chars]
+
 
 def summarize_overall(articles: List) -> str:
     """
@@ -80,6 +84,7 @@ def summarize_overall(articles: List) -> str:
     except Exception:
         return _fallback_summary(articles)
 
+
 # =========================
 # ✅ 제목/요약 겹침 방지용 (핵심 개선)
 # =========================
@@ -87,6 +92,7 @@ def _norm_text(s: str) -> str:
     s = re.sub(r"\s+", " ", (s or "")).strip()
     s = re.sub(r"[\"'“”‘’]", "", s)
     return s
+
 
 def _is_too_similar(title: str, summary: str, threshold: float = 0.78) -> bool:
     t = _norm_text(title)
@@ -104,6 +110,7 @@ def _is_too_similar(title: str, summary: str, threshold: float = 0.78) -> bool:
     ratio = difflib.SequenceMatcher(None, t, s).ratio()
     return ratio >= threshold
 
+
 def _rewrite_summary(client, title: str, raw_summary: str) -> str:
     title = _norm_text(title)
     raw_summary = _norm_text(raw_summary)
@@ -117,7 +124,7 @@ def _rewrite_summary(client, title: str, raw_summary: str) -> str:
 - 2~3문장, 사실만,
 - 기사 '출처(언론사)'는 제품, 브랜드, 제조사로 표현하지 말 것
 - 안경테,렌즈, 제품의 브랜드명은 기사 본문에 명확히 언급된 경우에만 사용
-- 브랜드가 불명확한 경우 특정 주체를 단정하지 말것 
+- 브랜드가 불명확한 경우 특정 주체를 단정하지 말것
 - 기사에 없는 단어 절대 사용 금지
 - 과장/추측 금지, 홍보 문구 금지
 - 220자 이내(가능하면 160~200자)
@@ -144,20 +151,35 @@ def _rewrite_summary(client, title: str, raw_summary: str) -> str:
         text = text[:220].rstrip() + "…"
     return text
 
+
 def refine_article_summaries(articles: List) -> None:
     """
     ✅ 기사별 summary를 뉴스레터용으로 다듬기
     - 기본: 길이 컷(220자)
     - 개선: summary가 title과 너무 비슷하면(OpenAI 가능 시) 2~3문장으로 재작성
+
+    ✅ (이번 수정) 링크가 이미지 파일(jpg/png 등)로 끝나면:
+    - summary를 제목(title)과 동일하게 고정
+    - OpenAI 재작성/가공 없이 그대로 노출
     """
     client = _get_client()
 
     for a in articles:
         title = getattr(a, "title", "") or ""
         summary = getattr(a, "summary", "") or ""
+        link = getattr(a, "link", "") or ""
 
         title = _norm_text(title)
         summary = _norm_text(summary)
+
+        # ✅ 핵심: 링크가 이미지 파일이면 summary는 제목 그대로
+        path = urlparse(link).path.lower()
+        if path.endswith((".jpg", ".jpeg", ".png", ".gif", ".webp")):
+            try:
+                a.summary = title
+            except Exception:
+                pass
+            continue
 
         if client is not None and _is_too_similar(title, summary):
             try:
