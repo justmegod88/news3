@@ -126,13 +126,15 @@ def _pick_representative(group):
 
 
 # =========================
-# ✅ (C) 중복 제거 + 묶기
+# ✅ (C) 기사 리스트용 중복 제거 + 묶기 (기존 유지: threshold=0.80)
 # =========================
-def dedupe_and_group_articles(articles, threshold: float = 0.80):
+def dedupe_and_group_articles(articles, threshold: float = 0.78):
     """
     반환: 대표 기사 리스트
     대표 기사에는 rep.duplicates = [{source, link, title}, ...] 가 생김
     """
+
+    # 1) URL+제목 완전 동일 기준으로 1차 그룹핑
     exact_map = {}
     for a in articles:
         url_key = _normalize_url(getattr(a, "link", ""))
@@ -142,6 +144,7 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
 
     stage1_groups = list(exact_map.values())
 
+    # 2) 요약/제목 유사도 기반 그룹 병합
     buckets = {}
     merged_groups = []
 
@@ -185,6 +188,7 @@ def dedupe_and_group_articles(articles, threshold: float = 0.80):
             for k in bucket_keys:
                 buckets.setdefault(k, []).append(grp)
 
+    # 3) 각 그룹에서 대표 선택 + duplicates 정보 생성
     representatives = []
     for grp in merged_groups:
         rep = _pick_representative(grp)
@@ -228,7 +232,59 @@ def remove_cross_category_duplicates(*category_lists):
 
 
 # =========================
-# ✅ (E) 전체 브리핑 입력용 기사 선택 (카테고리 분산 + 빈 summary 제외)
+# ✅ (E) 브리핑(상단 요약) 전용 중복 제거: threshold=0.70 (요청 반영)
+# =========================
+def _brief_norm(s: str) -> str:
+    s = (s or "").lower().strip()
+    s = re.sub(r"\s+", " ", s)
+    s = re.sub(r"\[[^\]]+\]", " ", s)      # [단독]
+    s = re.sub(r"\([^)]*\)", " ", s)       # (종합)
+    s = re.sub(r"[^\w가-힣 ]+", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _brief_sim(a: str, b: str) -> float:
+    a = _brief_norm(a)
+    b = _brief_norm(b)
+    if not a or not b:
+        return 0.0
+    return difflib.SequenceMatcher(None, a, b).ratio()
+
+
+def dedupe_for_brief(articles, threshold: float = 0.70, max_keep: int = 10):
+    """
+    ✅ 브리핑(상단 AI 요약) 전용 중복 제거
+    - "주제 같으면 제거" 목적이라 threshold를 0.70로 낮춤 (요청 반영)
+    - summary가 있으면 summary로 비교, 없으면 title로 비교
+    """
+    kept = []
+    for a in articles:
+        t = getattr(a, "title", "") or ""
+        s = getattr(a, "summary", "") or ""
+        key_text = s if s.strip() else t
+
+        dup = False
+        for k in kept:
+            kt = getattr(k, "title", "") or ""
+            ks = getattr(k, "summary", "") or ""
+            k_text = ks if ks.strip() else kt
+
+            if _brief_sim(key_text, k_text) >= threshold:
+                dup = True
+                break
+
+        if not dup:
+            kept.append(a)
+
+        if len(kept) >= max_keep:
+            break
+
+    return kept
+
+
+# =========================
+# ✅ (F) 브리핑 입력 후보 선택 (카테고리 분산 + 빈 summary 제외) + 브리핑 전용 dedupe(0.70)
 # =========================
 def _has_summary(a) -> bool:
     s = (getattr(a, "summary", "") or "").strip()
@@ -245,8 +301,8 @@ def select_articles_for_brief(
 ):
     """
     - 광고/단순 이미지로 summary가 빈 값인 기사는 제외
-    - '맨 위가 더 중요해 보이는' 편향 줄이기 위해 카테고리별로 1~2개씩 분산 선택
-    - 그래도 부족하면 남은 기사에서 순서대로 채움
+    - 카테고리별로 1~2개씩 분산 선택(맨 위 편향 완화)
+    - 브리핑 전용 dedupe(주제 중복 제거): threshold=0.70 적용
     """
     pools = [
         ("ACUVUE", [a for a in (acuvue_articles or []) if _has_summary(a)]),
@@ -256,7 +312,7 @@ def select_articles_for_brief(
         ("EyeHealth", [a for a in (eye_health_articles or []) if _has_summary(a)]),
     ]
 
-    # 1) 라운드 로빈으로 카테고리 분산 선택
+    # 1) 라운드로빈 분산 선택
     selected = []
     idx = 0
     while len(selected) < max_items:
@@ -269,7 +325,7 @@ def select_articles_for_brief(
             break
         idx += 1
 
-    # 2) 혹시 중복 URL/제목이 끼었으면 제거 (안전)
+    # 2) URL+제목 동일 중복 제거(안전)
     seen = set()
     deduped = []
     for a in selected:
@@ -279,12 +335,12 @@ def select_articles_for_brief(
         seen.add(key)
         deduped.append(a)
 
+    # ✅ 3) 브리핑 전용 "주제 중복" 제거 (요청: 0.70)
+    deduped = dedupe_for_brief(deduped, threshold=0.70, max_keep=max_items)
+
     return deduped[:max_items]
 
 
-# =========================
-# ✅ (F) "진짜 AI 요약" 브리핑 생성 (Top3 하이라이트 / 문장수 자동조절)
-# =========================
 def build_yesterday_ai_brief(
     acuvue_articles,
     company_articles,
@@ -292,7 +348,6 @@ def build_yesterday_ai_brief(
     trend_articles,
     eye_health_articles,
 ):
-    # 입력 기사 선택 (빈 summary 제외)
     picked = select_articles_for_brief(
         acuvue_articles,
         company_articles,
@@ -305,7 +360,6 @@ def build_yesterday_ai_brief(
     if not picked:
         return "어제는 수집된 기사가 없어 주요 이슈를 요약할 내용이 없습니다."
 
-    # ✅ 기사별(정제된) title + summary를 재료로 Top3 하이라이트 생성
     return summarize_overall(picked)
 
 
@@ -332,7 +386,7 @@ def main():
     # 6) 최종 안전 필터
     articles = [a for a in articles if not should_exclude_article(a.title, a.summary)]
 
-    # 7) 유사도 기반 묶기
+    # ✅ 7) 기사 리스트용 중복 묶기(기존 유지: 0.80)
     articles = dedupe_and_group_articles(articles, threshold=0.80)
 
     # 8) 분류
@@ -347,7 +401,7 @@ def main():
         categorized.eye_health,
     )
 
-    # ✅ 10) 어제 기사 브리핑(진짜 AI 요약)
+    # ✅ 10) 상단 브리핑(브리핑 전용 dedupe=0.70 적용된 picked로 요약)
     summary = build_yesterday_ai_brief(
         acuvue_list,
         company_list,
