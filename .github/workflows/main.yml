@@ -1,10 +1,14 @@
 name: Daily News Newsletter
 
+    # ✅ 매일 UTC 00:00 = 한국시간(KST) 오전 09:00
+    # - cron: "0 0 * * *"
+  
 on:
   schedule:
-    # ✅ 매일 UTC 00:00 = 한국시간(KST) 오전 09:00
-    - cron: "0 0 * * *"
+    - cron: "40 23 * * *"  # 매일 UTC 23:40 = 한국시간 08:40
+ 
   workflow_dispatch:
+
 
 jobs:
   run-newsletter:
