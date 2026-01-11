@@ -385,14 +385,13 @@ def _fallback_overall(articles: List, max_chars: int = 360) -> str:
 
 
 def _auto_sentence_target(n_articles: int) -> int:
-    # 1개: 1문장, 2개: 2문장, 3~5개: 3문장, 6개 이상: 4문장
+    # 1개: 1문장, 2개: 2문장, 3개 이상: 최대 3문장
     if n_articles <= 1:
         return 1
     if n_articles == 2:
         return 2
-    if n_articles <= 5:
-        return 3
-    return 4
+    return 3
+
 
 
 # =========================
@@ -402,7 +401,7 @@ def summarize_overall(articles: List) -> str:
     """
     ✅ 임원용 "어제 기사 AI 브리핑" (이슈 묶기형)
     - 1문장: 총평(어제 핵심 흐름/경향)  ※ 단, 입력에 근거한 범위 내에서만
-    - 2~4문장: 서로 다른 이슈 단위 요약 (기사 1개=1문장 나열 금지)
+    - 2~3문장: 서로 다른 이슈 단위 요약 (기사 1개=1문장 나열 금지)
     - 과장/추측 금지 
     - 임원보고용 공손한 말투
     """
