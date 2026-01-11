@@ -70,8 +70,8 @@ news_sources:
     host: newsis.com
   - name: 보건뉴스
     host: bosa.co.kr
-  #- name: 뉴스핌
-  #  host: newspim.com
+  - name: 뉴스핌
+    host: newspim.com
   - name: 메디소비자뉴스
     host: medisobizanews.com
   - name: 메디컬투데이
@@ -84,8 +84,6 @@ news_sources:
     host: legaltimes.co.kr
   - name: 안경원라이프
     host: opticallife.co.kr
-  - name: 스마트투데이
-    host: smarttoday.co.kr
   - name: 시선 뉴스 
     host: sisunnews.co.kr
 
