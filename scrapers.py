@@ -32,18 +32,15 @@ class Article:
     summary: str
     image_url: Optional[str] = None
     is_naver: bool = False
-    published_raw: Optional[str] = None  # ✅ 상대시간/원문 날짜 문자열 보관
+    published_raw: Optional[str] = None  # ✅ 추가: '8개월 전' 같은 원문 날짜 보관
 
 
 # =========================
-# Relative time handling
+# Relative time utils (핵심)
 # =========================
 RELATIVE_TIME_RE = re.compile(r"(?P<num>\d+)\s*(?P<unit>년|개월|달|일|시간)\s*전")
 
 def is_relative_time_text(text: str) -> bool:
-    """
-    '8개월 전', '3일 전', '5시간 전', '어제', '하루 전' 같은 상대시간 표기 감지
-    """
     if not text:
         return False
     t = str(text).strip()
@@ -51,7 +48,7 @@ def is_relative_time_text(text: str) -> bool:
 
 def allow_only_one_day_ago_relative(text: str) -> bool:
     """
-    상대시간 중 '1일 전/어제/하루 전'만 허용
+    상대시간 중 '1일 전 / 어제 / 하루 전'만 허용
     """
     if not text:
         return False
@@ -66,8 +63,23 @@ def allow_only_one_day_ago_relative(text: str) -> bool:
 
     num = int(m.group("num"))
     unit = m.group("unit")
-
     return unit == "일" and num == 1
+
+
+def _parse_absolute_date_text(text: str, tz) -> Optional[dt.datetime]:
+    """
+    네이버/기타에서 나올 수 있는 '2026.01.10.' 같은 절대날짜 파싱
+    """
+    if not text:
+        return None
+    t = str(text).strip()
+    try:
+        d = date_parser.parse(t)
+        if d.tzinfo is None:
+            return d.replace(tzinfo=tz)
+        return d.astimezone(tz)
+    except Exception:
+        return None
 
 
 # =========================
@@ -211,38 +223,8 @@ def _safe_now(tz):
 # Helpers
 # =========================
 def parse_rss_datetime(value, tz):
-    """
-    - 일반 날짜 문자열은 파싱
-    - 상대시간(개월 전 등)은 파싱 실패 -> None 반환(필터에서 처리)
-    """
     try:
         d = date_parser.parse(value)
-        if d.tzinfo is None:
-            return d.replace(tzinfo=tz)
-        return d.astimezone(tz)
-    except Exception:
-        return None
-
-
-def _parse_naver_time_text(raw: str, tz):
-    """
-    네이버 검색 결과의 날짜/상대시간 파싱:
-    - '1일 전/어제/하루 전' => now-1day로 처리
-    - '2일 전/몇시간 전/개월 전/년 전' => None(제외)
-    - '2026.01.10.' 같은 절대 날짜 => 파싱
-    """
-    t = (raw or "").strip()
-    if not t:
-        return None
-
-    if is_relative_time_text(t):
-        if allow_only_one_day_ago_relative(t):
-            return _safe_now(tz) - dt.timedelta(days=1)
-        return None
-
-    # 절대 날짜 시도
-    try:
-        d = date_parser.parse(t)
         if d.tzinfo is None:
             return d.replace(tzinfo=tz)
         return d.astimezone(tz)
@@ -341,22 +323,16 @@ def fetch_from_google_news(query, source_name, tz):
             summary = clean_summary(getattr(e, "summary", "") or "")
             link = resolve_final_url(getattr(e, "link", "") or "")
 
-            # ✅ published/updated가 없는 경우가 있어서 안전 처리
             pub_val = getattr(e, "published", None) or getattr(e, "updated", None)
-            published_raw = pub_val
+            published_raw = str(pub_val) if pub_val else None
 
-            # ✅ 상대시간이면: 1일 전만 허용, 그 외는 None 처리(필터에서 제외)
-            if pub_val and is_relative_time_text(str(pub_val)):
-                if allow_only_one_day_ago_relative(str(pub_val)):
-                    published = _safe_now(tz) - dt.timedelta(days=1)
-                else:
-                    published = None
+            # ✅ 상대시간이면: 1일 전만 허용, 나머지는 skip
+            if published_raw and is_relative_time_text(published_raw):
+                if not allow_only_one_day_ago_relative(published_raw):
+                    continue  # ❌ 8개월 전/몇시간 전 등은 여기서 바로 제외
+                published = _safe_now(tz) - dt.timedelta(days=1)
             else:
-                if pub_val:
-                    published = parse_rss_datetime(pub_val, tz)
-                else:
-                    # 날짜가 없으면 일단 오늘로(기존 동작 유지)
-                    published = _safe_now(tz)
+                published = parse_rss_datetime(pub_val, tz) if pub_val else _safe_now(tz)
 
             source = (
                 getattr(getattr(e, "source", None), "title", "")
@@ -367,19 +343,17 @@ def fetch_from_google_news(query, source_name, tz):
             if should_exclude_article(title, summary):
                 continue
 
-            # ✅ published가 None이면(상대시간 컷 or 파싱 실패) 일단 담되, 날짜필터에서 제거됨
             articles.append(
                 Article(
                     title=title,
                     link=link,
-                    published=published if published is not None else _safe_now(tz),
+                    published=published,
                     source=source,
                     summary=summary,
-                    published_raw=str(published_raw) if published_raw is not None else None,
+                    published_raw=published_raw,
                 )
             )
         except Exception:
-            # ✅ 한 엔트리 오류가 전체 수집을 망치지 않게
             continue
 
     return articles
@@ -419,34 +393,50 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
             press = it.select_one("a.info.press")
             source = press.get_text(strip=True) if press else source_name
 
-            # ✅ 네이버 상대시간/절대시간 원문 확보 (span.info 중 날짜에 해당하는 것)
-            published_raw = ""
+            # ✅ 네이버에서 날짜/상대시간 텍스트 추출 (중요)
+            published_raw = None
             info_spans = it.select("span.info")
             if info_spans:
-                # 보통 press 외에 날짜 span이 섞여서 나오므로, "전" 또는 "." 포함된 span 우선 선택
-                candidates = [s.get_text(strip=True) for s in info_spans if s.get_text(strip=True)]
-                picked = ""
+                candidates = [s.get_text(" ", strip=True) for s in info_spans if s.get_text(" ", strip=True)]
+                # 우선순위: '전' 포함(상대시간) > 숫자/점 포함(절대날짜) > 마지막
                 for c in candidates:
-                    if "전" in c or "." in c or "-" in c:
-                        picked = c
+                    if "전" in c:
+                        published_raw = c
                         break
-                published_raw = picked or (candidates[-1] if candidates else "")
+                if not published_raw:
+                    for c in candidates:
+                        if "." in c or "-" in c:
+                            published_raw = c
+                            break
+                if not published_raw and candidates:
+                    published_raw = candidates[-1]
 
-            # ✅ 상대시간이면 1일 전만 허용 / 그 외 제외되도록 published는 None 처리
-            parsed = _parse_naver_time_text(published_raw, tz)
-            if is_relative_time_text(published_raw) and not allow_only_one_day_ago_relative(published_raw):
-                # 2일 전/시간 전/개월 전/년 전 => 제외(날짜 필터에서 제거)
-                parsed = None
+            # ✅ 날짜를 못 찾으면 안전하게 제외 (8개월전 섞이는 걸 막기 위한 보수 정책)
+            if not published_raw:
+                continue
+
+            # ✅ 상대시간이면: 1일 전만 허용, 나머지 즉시 제외
+            if is_relative_time_text(published_raw):
+                if not allow_only_one_day_ago_relative(published_raw):
+                    continue  # ❌ 8개월 전/몇시간 전 등은 여기서 바로 제외
+                published = _safe_now(tz) - dt.timedelta(days=1)
+            else:
+                # 절대날짜 파싱 시도
+                parsed = _parse_absolute_date_text(published_raw, tz)
+                if not parsed:
+                    # 절대날짜도 못 읽으면 제외(안전)
+                    continue
+                published = parsed
 
             articles.append(
                 Article(
                     title=title,
                     link=link,
-                    published=parsed if parsed is not None else _safe_now(tz),
+                    published=published,
                     source=source,
                     summary=summary,
                     is_naver=True,
-                    published_raw=published_raw or None,
+                    published_raw=published_raw,
                 )
             )
 
@@ -476,33 +466,9 @@ def fetch_all_articles(cfg):
 
 
 def filter_yesterday_articles(articles, cfg):
-    """
-    ✅ 상대시간(년전/개월전/일전/시간전)일 경우:
-    - 오직 1일 전/어제/하루 전만 통과
-    - 그 외는 전부 제외
-    """
     tz = _get_tz(cfg)
     y = _safe_now(tz).date() - dt.timedelta(days=1)
-
-    out = []
-    for a in articles:
-        raw = getattr(a, "published_raw", None)
-
-        # 1) raw가 상대시간이면: 1일 전만 통과
-        if raw and is_relative_time_text(raw):
-            if allow_only_one_day_ago_relative(raw):
-                # 이미 published를 yesterday로 맞춰두었어도 안전하게 한번 더 보정
-                out.append(a)
-            continue
-
-        # 2) 절대시간 기준(기존)
-        try:
-            if a.published and a.published.date() == y:
-                out.append(a)
-        except Exception:
-            continue
-
-    return out
+    return [a for a in articles if a.published and a.published.date() == y]
 
 
 def filter_out_finance_articles(articles):
