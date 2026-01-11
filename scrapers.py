@@ -11,7 +11,7 @@ from dateutil import parser as date_parser
 
 import requests
 from bs4 import BeautifulSoup
-https://github.com/justmegod88/news3/edit/main/scrapers.py
+
 try:
     from zoneinfo import ZoneInfo
 except Exception:
