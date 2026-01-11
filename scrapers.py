@@ -4,7 +4,6 @@ from typing import List, Optional, Tuple
 from urllib.parse import quote_plus, urlparse, parse_qs
 import re
 import html
-import json
 
 import feedparser
 import yaml
@@ -45,12 +44,29 @@ FINANCE_KEYWORDS = [
     "목표주가", "시가총액", "ir", "주주","오렌지",
 ]
 
-# ✅ 약업(야쿠프/약업신문) 도메인: (이제 날짜가 정확해지면 굳이 제외할 필요 없음)
+# ✅ 약업(야쿠프/약업신문) 도메인: 날짜 오류(과거 기사 유입) 방지용
 YAKUP_BLOCK_HOSTS = [
     "yakup.com", "www.yakup.com",
     "yakup.co.kr", "www.yakup.co.kr",
 ]
 YAKUP_BLOCK_TOKENS = ["약업", "약업신문", "약학신문", "yakup"]
+
+# ✅ 재배포/애그리게이터(원문 아닌 경우가 많아서 날짜 오염 유발) - 우선 차단
+AGGREGATOR_BLOCK_HOSTS = [
+    "msn.com", "www.msn.com",
+    "flipboard.com", "www.flipboard.com",
+    "smartnews.com", "www.smartnews.com",
+    "newsbreak.com", "www.newsbreak.com",
+]
+
+# ✅ (추가) 구글뉴스 RSS에서 링크가 news.google.com으로 남는 경우가 많아서
+# ✅ source(언론사명)로도 재배포를 차단
+AGGREGATOR_BLOCK_SOURCES = [
+    "msn",
+    "flipboard",
+    "smartnews",
+    "newsbreak",
+]
 
 # 연예 / 예능 / 오락
 ENTERTAINMENT_HINTS = [
@@ -106,6 +122,38 @@ INDUSTRY_WHITELIST = [
 # =========================
 def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "")).strip().lower()
+
+
+def _is_aggregator_host(host: str) -> bool:
+    """
+    ✅ 재배포/애그리게이터 도메인 차단용
+    - 정확히 일치 + 서브도메인까지 커버(endswith)
+    """
+    h = (host or "").lower().strip()
+    if not h:
+        return False
+
+    # netloc에 포트가 붙는 케이스 제거
+    if ":" in h:
+        h = h.split(":", 1)[0]
+
+    for b in AGGREGATOR_BLOCK_HOSTS:
+        b = b.lower()
+        if h == b or h.endswith("." + b):
+            return True
+    return False
+
+
+def _is_aggregator_source(source: str) -> bool:
+    """
+    ✅ (추가) source(언론사명) 기반 차단
+    - 구글뉴스 RSS에서 link가 news.google.com으로 남는 케이스 방어
+    """
+    s = (source or "").strip().lower()
+    if not s:
+        return False
+    # "MSN" / "msn" / "MSN Korea" 같은 변형도 커버
+    return any(b in s for b in AGGREGATOR_BLOCK_SOURCES)
 
 
 def should_exclude_article(title: str, summary: str = "") -> bool:
@@ -202,9 +250,6 @@ def parse_google_title_and_press(raw_title: str) -> Tuple[str, str]:
 
 
 def resolve_final_url(link: str) -> str:
-    """
-    Google News RSS link에 url= 파라미터가 있으면 원문 링크로 교체.
-    """
     try:
         qs = parse_qs(urlparse(link).query)
         if "url" in qs:
@@ -212,312 +257,6 @@ def resolve_final_url(link: str) -> str:
     except Exception:
         pass
     return link
-
-
-# =========================
-# Date handling (핵심)
-# =========================
-AGGREGATOR_HOSTS = {
-    "msn.com", "www.msn.com",
-    "news.google.com",
-}
-
-NAVER_RELATIVE_ONLY_1DAY = True  # ✅ 사용자가 요청: 년전/개월전/일전/몇시간전 표시라면 "1일 전"만 수집
-
-
-def _host(url: str) -> str:
-    try:
-        return (urlparse(url).netloc or "").lower()
-    except Exception:
-        return ""
-
-
-def _is_yesterday_dt(d: Optional[dt.datetime], tz) -> bool:
-    if not d:
-        return False
-    try:
-        dd = d.astimezone(tz).date() if d.tzinfo else d.date()
-    except Exception:
-        dd = d.date()
-    y = _safe_now(tz).date() - dt.timedelta(days=1)
-    return dd == y
-
-
-def _attach_tz(d: dt.datetime, tz):
-    if d.tzinfo is None:
-        return d.replace(tzinfo=tz)
-    return d.astimezone(tz)
-
-
-def _parse_relative_korean(s: str, tz) -> Optional[dt.datetime]:
-    """
-    '3시간 전', '1일 전', '8개월 전', '2년 전' 등을 처리.
-    ✅ 사용 조건: 상대시간 표시인 경우 "1일 전"만 통과시키려면
-      - NAVER_RELATIVE_ONLY_1DAY=True 일 때: '1일 전'만 날짜로 변환, 나머지는 None
-    """
-    s = (s or "").strip()
-    m = re.search(r"(\d+)\s*(분|시간|일|개월|년)\s*전", s)
-    if not m:
-        return None
-
-    n = int(m.group(1))
-    unit = m.group(2)
-
-    if NAVER_RELATIVE_ONLY_1DAY:
-        # ✅ "1일 전"만 허용 (년전/개월전/몇시간전/몇분전은 전부 버림)
-        if not (unit == "일" and n == 1):
-            return None
-
-    now = _safe_now(tz)
-
-    # "1일 전"만 쓰는 정책이면 아래는 사실상 day=1만 남음
-    if unit == "분":
-        return now - dt.timedelta(minutes=n)
-    if unit == "시간":
-        return now - dt.timedelta(hours=n)
-    if unit == "일":
-        return now - dt.timedelta(days=n)
-    if unit == "개월":
-        # 근사치(30일) - 정책상 보통 None 처리됨
-        return now - dt.timedelta(days=30 * n)
-    if unit == "년":
-        # 근사치(365일) - 정책상 보통 None 처리됨
-        return now - dt.timedelta(days=365 * n)
-    return None
-
-
-def _parse_absolute_date_any(s: str, tz) -> Optional[dt.datetime]:
-    """
-    '2026.01.10', '2026-01-10', '2026/01/10', '2026년 1월 10일' 등 파싱.
-    """
-    s = (s or "").strip()
-    if not s:
-        return None
-
-    # YYYY.MM.DD / YYYY-MM-DD / YYYY/MM/DD
-    m = re.search(r"(20\d{2})\s*[.\-/]\s*(\d{1,2})\s*[.\-/]\s*(\d{1,2})", s)
-    if m:
-        y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        try:
-            return dt.datetime(y, mo, d, 0, 0, 0, tzinfo=tz)
-        except Exception:
-            return None
-
-    # YYYY년 M월 D일
-    m = re.search(r"(20\d{2})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일", s)
-    if m:
-        y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        try:
-            return dt.datetime(y, mo, d, 0, 0, 0, tzinfo=tz)
-        except Exception:
-            return None
-
-    # dateutil (fuzzy) 마지막 시도
-    try:
-        d = date_parser.parse(s, fuzzy=True)
-        return _attach_tz(d, tz)
-    except Exception:
-        return None
-
-
-def _try_get_jsonld_dates(soup: BeautifulSoup, tz) -> Optional[dt.datetime]:
-    """
-    JSON-LD에서 datePublished/dateModified 뽑기
-    """
-    scripts = soup.find_all("script", attrs={"type": re.compile(r"ld\+json", re.I)})
-    for sc in scripts:
-        raw = sc.get_text(" ", strip=True)
-        if not raw:
-            continue
-        try:
-            data = json.loads(raw)
-        except Exception:
-            # 일부 사이트는 json이 여러개 붙어있거나 깨져있음
-            continue
-
-        def iter_nodes(x):
-            if isinstance(x, dict):
-                yield x
-                for v in x.values():
-                    yield from iter_nodes(v)
-            elif isinstance(x, list):
-                for it in x:
-                    yield from iter_nodes(it)
-
-        for node in iter_nodes(data):
-            if not isinstance(node, dict):
-                continue
-            for key in ("datePublished", "dateModified", "uploadDate"):
-                if key in node and node[key]:
-                    d = _parse_absolute_date_any(str(node[key]), tz)
-                    if d:
-                        return d
-    return None
-
-
-def _try_get_meta_dates(soup: BeautifulSoup, tz) -> Optional[dt.datetime]:
-    """
-    meta / time 태그에서 날짜 찾기
-    """
-    meta_keys = [
-        ("property", "article:published_time"),
-        ("property", "article:modified_time"),
-        ("name", "article:published_time"),
-        ("name", "pubdate"),
-        ("name", "publishdate"),
-        ("name", "date"),
-        ("name", "parsely-pub-date"),
-        ("itemprop", "datePublished"),
-        ("itemprop", "dateModified"),
-    ]
-
-    for attr, val in meta_keys:
-        tag = soup.find("meta", attrs={attr: val})
-        if tag and tag.get("content"):
-            d = _parse_absolute_date_any(tag.get("content"), tz)
-            if d:
-                return d
-
-    # <time datetime="...">
-    t = soup.find("time")
-    if t:
-        if t.get("datetime"):
-            d = _parse_absolute_date_any(t.get("datetime"), tz)
-            if d:
-                return d
-        txt = t.get_text(" ", strip=True)
-        d = _parse_absolute_date_any(txt, tz)
-        if d:
-            return d
-
-    return None
-
-
-def _try_get_text_dates(soup: BeautifulSoup, tz) -> Optional[dt.datetime]:
-    """
-    본문 텍스트에서 날짜/상대시간 찾기
-    - '입력 2026.01.10' 같은 패턴
-    - '8개월 전' 같은 상대시간(정책상 "1일 전"만 허용 가능)
-    """
-    text = soup.get_text(" ", strip=True)
-    if not text:
-        return None
-
-    # 상대시간 (정책 반영: "1일 전"만 허용)
-    m = re.search(r"(\d+)\s*(분|시간|일|개월|년)\s*전", text)
-    if m:
-        rel = _parse_relative_korean(m.group(0), tz)
-        if rel:
-            return rel
-
-    # '입력', '등록', '기사입력', '최종수정' 주변 날짜
-    around_patterns = [
-        r"(입력|등록|기사입력|게재|작성|업데이트|최종수정)\s*[:\-]?\s*(20\d{2}[.\-/]\d{1,2}[.\-/]\d{1,2})",
-        r"(입력|등록|기사입력|게재|작성|업데이트|최종수정)\s*[:\-]?\s*(20\d{2}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일)",
-    ]
-    for pat in around_patterns:
-        m = re.search(pat, text)
-        if m:
-            d = _parse_absolute_date_any(m.group(2), tz)
-            if d:
-                return d
-
-    # 최후: 텍스트 내 첫 날짜
-    m = re.search(r"(20\d{2})\s*[.\-/]\s*(\d{1,2})\s*[.\-/]\s*(\d{1,2})", text)
-    if m:
-        d = _parse_absolute_date_any(m.group(0), tz)
-        if d:
-            return d
-
-    return None
-
-
-def _find_original_link_in_aggregator(soup: BeautifulSoup, base_url: str) -> Optional[str]:
-    """
-    MSN/재배포 페이지에서 '원문/출처' 링크 찾기 시도.
-    - 성공하면 그 URL로 다시 들어가 날짜를 재추출할 수 있음
-    """
-    # 텍스트 기반
-    candidates_text = ["원문", "원문보기", "기사 원문", "원문 보기", "출처", "원문 링크", "원문기사"]
-    for a in soup.find_all("a", href=True):
-        txt = (a.get_text(" ", strip=True) or "").strip()
-        if not txt:
-            continue
-        if any(t in txt for t in candidates_text):
-            href = a.get("href")
-            if href and href.startswith("http"):
-                return href
-
-    # rel=canonical 우선
-    canon = soup.find("link", attrs={"rel": "canonical"})
-    if canon and canon.get("href") and canon.get("href").startswith("http"):
-        return canon.get("href")
-
-    # og:url
-    og = soup.find("meta", attrs={"property": "og:url"})
-    if og and og.get("content") and og.get("content").startswith("http"):
-        return og.get("content")
-
-    return None
-
-
-def fetch_html(url: str, timeout=(4.0, 10.0)) -> Tuple[Optional[str], str]:
-    """
-    HTML 가져오고 최종 URL(리다이렉트 반영)도 반환
-    """
-    headers = {
-        "User-Agent": "Mozilla/5.0 (compatible; NewsBot/1.0)",
-        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.6",
-    }
-    try:
-        r = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
-        r.raise_for_status()
-        return r.text, r.url
-    except Exception:
-        return None, url
-
-
-def extract_published_from_article_page(url: str, tz) -> Tuple[Optional[dt.datetime], str]:
-    """
-    ✅ 날짜 문제 해결 핵심:
-    - 원문 페이지에서 날짜를 최대한 뽑아서 published를 '진짜 날짜'로 덮어쓴다.
-    - 날짜를 못 뽑으면 None (=> 어제 필터에서 탈락시키는 방향)
-    - MSN 같은 재배포는 원문 링크를 찾아 한 번 더 따라가 본다.
-    """
-    html_text, final_url = fetch_html(url)
-    if not html_text:
-        return None, final_url
-
-    soup = BeautifulSoup(html_text, "html.parser")
-
-    # 1) JSON-LD
-    d = _try_get_jsonld_dates(soup, tz)
-    if d:
-        return _attach_tz(d, tz), final_url
-
-    # 2) meta/time
-    d = _try_get_meta_dates(soup, tz)
-    if d:
-        return _attach_tz(d, tz), final_url
-
-    # 3) text 기반
-    d = _try_get_text_dates(soup, tz)
-    if d:
-        return _attach_tz(d, tz), final_url
-
-    # 4) 재배포(예: msn)일 가능성 → 원문 링크 찾아 재시도
-    if _host(final_url) in AGGREGATOR_HOSTS or "msn." in _host(final_url):
-        orig = _find_original_link_in_aggregator(soup, final_url)
-        if orig and orig != final_url:
-            html_text2, final_url2 = fetch_html(orig)
-            if html_text2:
-                soup2 = BeautifulSoup(html_text2, "html.parser")
-                d2 = _try_get_jsonld_dates(soup2, tz) or _try_get_meta_dates(soup2, tz) or _try_get_text_dates(soup2, tz)
-                if d2:
-                    return _attach_tz(d2, tz), final_url2
-            return None, final_url2
-
-    return None, final_url
 
 
 # =========================
@@ -568,7 +307,7 @@ def deduplicate_articles(articles: List[Article]) -> List[Article]:
 
 
 # =========================
-# Google News (✅ 날짜 강제 검증 버전)
+# Google News (✅ 안정화 버전)
 # =========================
 def fetch_from_google_news(query, source_name, tz):
     feed = feedparser.parse(build_google_news_url(query))
@@ -582,8 +321,17 @@ def fetch_from_google_news(query, source_name, tz):
             summary = clean_summary(getattr(e, "summary", "") or "")
             link = resolve_final_url(getattr(e, "link", "") or "")
 
+            # ✅ 0) 도메인 기준 재배포 차단(링크가 msn 등으로 바로 오는 경우)
+            host = urlparse(link).netloc.lower() if link else ""
+            if _is_aggregator_host(host):
+                continue
+
+            # ✅ published/updated가 없는 경우가 있어서 안전 처리
             pub_val = getattr(e, "published", None) or getattr(e, "updated", None)
-            published = parse_rss_datetime(pub_val, tz) if pub_val else None
+            if pub_val:
+                published = parse_rss_datetime(pub_val, tz)
+            else:
+                published = _safe_now(tz)
 
             source = (
                 getattr(getattr(e, "source", None), "title", "")
@@ -591,28 +339,12 @@ def fetch_from_google_news(query, source_name, tz):
                 or source_name
             )
 
-            if should_exclude_article(title, summary):
+            # ✅ 0.5) (추가) source 기준 재배포 차단
+            #     링크가 news.google.com으로 남아도 "MSN" 같은 source면 컷
+            if _is_aggregator_source(source):
                 continue
 
-            # ✅ 날짜 문제 해결 핵심:
-            # - RSS 날짜가 어제가 아니면 무조건 원문 날짜 재추출
-            # - 재배포/집계 도메인(msn 등)은 RSS가 어제여도 원문 날짜 재추출
-            host = _host(link)
-            need_page_check = (not _is_yesterday_dt(published, tz)) or (host in AGGREGATOR_HOSTS or host.endswith("msn.com"))
-
-            if need_page_check:
-                page_dt, final_url = extract_published_from_article_page(link, tz)
-                # link도 최종 URL로 갱신(리다이렉트/원문 이동 반영)
-                link = final_url
-
-                # ✅ 날짜 못 뽑으면 과감히 버림 (이게 과거기사 유입 방지의 핵심)
-                if page_dt:
-                    published = page_dt
-                else:
-                    continue
-
-            # ✅ 최종: 어제 기사만 통과
-            if not _is_yesterday_dt(published, tz):
+            if should_exclude_article(title, summary):
                 continue
 
             articles.append(
@@ -631,42 +363,8 @@ def fetch_from_google_news(query, source_name, tz):
 
 
 # =========================
-# Naver News (✅ '1일 전'만 통과 + 날짜 정확화)
+# Naver News
 # =========================
-def _extract_naver_item_datetime(it: BeautifulSoup, tz) -> Optional[dt.datetime]:
-    """
-    네이버 뉴스 검색 결과에서 날짜/상대시간을 추출
-    - '8개월 전' 같이 상대시간이면 정책상 '1일 전'만 허용
-    - '2026.01.10' 같이 절대날짜면 그 날짜 사용
-    """
-    # 네이버는 보통 a.info.press 옆에 span.info / a.info 형태로 시간이 노출됨
-    info_nodes = it.select("span.info")
-    # press는 첫 span.info일 때가 많아서, 여러개 중에서 시간 후보를 찾는다
-    candidates = []
-    for n in info_nodes:
-        txt = n.get_text(" ", strip=True)
-        if txt:
-            candidates.append(txt)
-
-    # 후보 중에서 상대시간/날짜로 보이는 것만 우선 처리
-    for c in candidates:
-        if re.search(r"\d+\s*(분|시간|일|개월|년)\s*전", c):
-            return _parse_relative_korean(c, tz)
-        if re.search(r"20\d{2}\s*[.\-/]\s*\d{1,2}\s*[.\-/]\s*\d{1,2}", c) or re.search(r"20\d{2}\s*년", c):
-            return _parse_absolute_date_any(c, tz)
-
-    # 최후: 텍스트 전체에서 한 번 더
-    txt_all = it.get_text(" ", strip=True)
-    rel = _parse_relative_korean(txt_all, tz)
-    if rel:
-        return rel
-    absd = _parse_absolute_date_any(txt_all, tz)
-    if absd:
-        return absd
-
-    return None
-
-
 def fetch_from_naver_news(keyword, source_name, tz, pages=8):
     base = "https://search.naver.com/search.naver"
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -689,6 +387,12 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
 
             title = a.get("title", "")
             link = a.get("href", "")
+
+            # ✅ 네이버 링크 도메인 차단(안전망)
+            host = urlparse(link).netloc.lower() if link else ""
+            if _is_aggregator_host(host):
+                continue
+
             summary_tag = it.select_one("div.news_dsc")
             summary = summary_tag.get_text(" ", strip=True) if summary_tag else ""
 
@@ -698,21 +402,15 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
             press = it.select_one("a.info.press")
             source = press.get_text(strip=True) if press else source_name
 
-            published = _extract_naver_item_datetime(it, tz)
-
-            # ✅ 네이버도 날짜를 못 찾으면 버림
-            if not published:
-                continue
-
-            # ✅ 최종: 어제만 통과
-            if not _is_yesterday_dt(published, tz):
+            # ✅ (추가) 네이버도 source 기준 재배포 차단(혹시 모를 변형)
+            if _is_aggregator_source(source):
                 continue
 
             articles.append(
                 Article(
                     title=title,
                     link=link,
-                    published=published,
+                    published=_safe_now(tz),
                     source=source,
                     summary=summary,
                     is_naver=True,
@@ -745,13 +443,9 @@ def fetch_all_articles(cfg):
 
 
 def filter_yesterday_articles(articles, cfg):
-    """
-    ✅ 지금은 fetch 단계에서 이미 '어제만' 통과시키지만,
-    기존 파이프라인과의 호환을 위해 유지.
-    """
     tz = _get_tz(cfg)
     y = _safe_now(tz).date() - dt.timedelta(days=1)
-    return [a for a in articles if a.published and a.published.astimezone(tz).date() == y]
+    return [a for a in articles if a.published.date() == y]
 
 
 def filter_out_finance_articles(articles):
@@ -759,24 +453,18 @@ def filter_out_finance_articles(articles):
 
 
 def filter_out_yakup_articles(articles):
-    """
-    (선택) 이제 날짜가 정확해지면, 약업신문을 굳이 제외할 필요가 없어짐.
-    그래도 호출하는 코드가 남아있을 수 있으니,
-    기본은 '그대로 통과'로 두고, 필요할 때만 아래 continue 로직을 켜서 사용해.
-    """
+    """약업(야쿠프) 기사만 확실히 제외."""
     out = []
     for a in articles:
-        # ✅ 기본: 통과
+        host = urlparse(a.link).netloc.lower() if getattr(a, "link", None) else ""
+        src = (getattr(a, "source", "") or "").lower()
+        title = (getattr(a, "title", "") or "").lower()
+
+        if host in YAKUP_BLOCK_HOSTS:
+            continue
+
+        if any(t in src for t in YAKUP_BLOCK_TOKENS) or any(t in title for t in YAKUP_BLOCK_TOKENS):
+            continue
+
         out.append(a)
-
-        # --- 필요하면 아래 블록을 활성화 ---
-        # host = urlparse(a.link).netloc.lower() if getattr(a, "link", None) else ""
-        # src = (getattr(a, "source", "") or "").lower()
-        # title = (getattr(a, "title", "") or "").lower()
-        # if host in YAKUP_BLOCK_HOSTS:
-        #     continue
-        # if any(t in src for t in YAKUP_BLOCK_TOKENS) or any(t in title for t in YAKUP_BLOCK_TOKENS):
-        #     continue
-        # out.append(a)
-
     return out
