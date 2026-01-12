@@ -4,12 +4,15 @@ from typing import List, Optional, Tuple
 from urllib.parse import quote_plus, urlparse, parse_qs
 import re
 import html
+import time
 
 import feedparser
 import yaml
 from dateutil import parser as date_parser
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
 
 try:
@@ -125,18 +128,11 @@ def _normalize(text: str) -> str:
 
 
 def _is_aggregator_host(host: str) -> bool:
-    """
-    ✅ 재배포/애그리게이터 도메인 차단용
-    - 정확히 일치 + 서브도메인까지 커버(endswith)
-    """
     h = (host or "").lower().strip()
     if not h:
         return False
-
-    # netloc에 포트가 붙는 케이스 제거
     if ":" in h:
         h = h.split(":", 1)[0]
-
     for b in AGGREGATOR_BLOCK_HOSTS:
         b = b.lower()
         if h == b or h.endswith("." + b):
@@ -145,14 +141,9 @@ def _is_aggregator_host(host: str) -> bool:
 
 
 def _is_aggregator_source(source: str) -> bool:
-    """
-    ✅ (추가) source(언론사명) 기반 차단
-    - 구글뉴스 RSS에서 link가 news.google.com으로 남는 케이스 방어
-    """
     s = (source or "").strip().lower()
     if not s:
         return False
-    # "MSN" / "msn" / "MSN Korea" 같은 변형도 커버
     return any(b in s for b in AGGREGATOR_BLOCK_SOURCES)
 
 
@@ -221,6 +212,36 @@ def _safe_now(tz):
 
 
 # =========================
+# HTTP Session (Retry)
+# =========================
+def _build_http_session() -> requests.Session:
+    """
+    ✅ 네이버에서 ReadTimeout/일시적 차단이 자주 나서
+    - 자동 재시도(retry)
+    - 백오프(backoff)
+    - 429/5xx 처리
+    를 넣은 Session을 사용.
+    """
+    s = requests.Session()
+
+    retry = Retry(
+        total=5,
+        connect=5,
+        read=5,
+        status=5,
+        backoff_factor=0.8,  # 0.8s, 1.6s, 3.2s... 식으로 증가
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET"],
+        raise_on_status=False,
+    )
+
+    adapter = HTTPAdapter(max_retries=retry, pool_connections=20, pool_maxsize=20)
+    s.mount("https://", adapter)
+    s.mount("http://", adapter)
+    return s
+
+
+# =========================
 # Helpers
 # =========================
 def parse_rss_datetime(value, tz):
@@ -263,12 +284,6 @@ def resolve_final_url(link: str) -> str:
 # ✅ A안: 네이버 검색결과 상대시간 파싱
 # =========================
 def _parse_naver_time_text_to_dt(text: str, tz) -> Optional[dt.datetime]:
-    """
-    네이버 검색결과에 흔히 나오는 시간표현:
-    - '1일 전', '3시간 전', '25분 전'
-    - '8개월 전', '2년 전' (→ 어제 수집 목적상 None 처리해서 탈락시키는 게 안전)
-    - (가끔) 'YYYY.MM.DD.' 형태의 절대날짜
-    """
     if not text:
         return None
 
@@ -296,23 +311,16 @@ def _parse_naver_time_text_to_dt(text: str, tz) -> Optional[dt.datetime]:
     if unit == "일":
         return now - dt.timedelta(days=n)
 
-    # 개월/년은 정확 변환 애매 + '어제만 수집'에 불필요
-    # → None 반환해서 어제 필터(또는 네이버 단계)에서 탈락
+    # 개월/년은 어제 수집 목적상 None 처리(탈락)
     return None
 
 
 def _extract_naver_search_item_time_text(news_wrap) -> str:
-    """
-    네이버 검색결과 카드에서 날짜/상대시간 텍스트를 최대한 안정적으로 뽑기.
-    보통 span.info 중 하나에 '1일 전' 같은 텍스트가 있음.
-    """
-    # 1) span.info들 훑기
     for sp in news_wrap.select("span.info"):
         t = sp.get_text(" ", strip=True)
         if re.search(r"(\d+\s*(분|시간|일|개월|년)\s*전)|(\d{4}\.\d{1,2}\.\d{1,2}\.)", t):
             return t
 
-    # 2) 혹시 다른 구조(backup)
     txt = news_wrap.get_text(" ", strip=True)
     m = re.search(r"(\d+\s*(분|시간|일|개월|년)\s*전)|(\d{4}\.\d{1,2}\.\d{1,2}\.)", txt)
     return m.group(0) if m else ""
@@ -380,12 +388,11 @@ def fetch_from_google_news(query, source_name, tz):
             summary = clean_summary(getattr(e, "summary", "") or "")
             link = resolve_final_url(getattr(e, "link", "") or "")
 
-            # ✅ 0) 도메인 기준 재배포 차단(링크가 msn 등으로 바로 오는 경우)
+            # ✅ 0) 도메인 기준 재배포 차단
             host = urlparse(link).netloc.lower() if link else ""
             if _is_aggregator_host(host):
                 continue
 
-            # ✅ published/updated가 없는 경우가 있어서 안전 처리
             pub_val = getattr(e, "published", None) or getattr(e, "updated", None)
             if pub_val:
                 published = parse_rss_datetime(pub_val, tz)
@@ -398,8 +405,7 @@ def fetch_from_google_news(query, source_name, tz):
                 or source_name
             )
 
-            # ✅ 0.5) (추가) source 기준 재배포 차단
-            #     링크가 news.google.com으로 남아도 "MSN" 같은 source면 컷
+            # ✅ 0.5) source 기준 재배포 차단
             if _is_aggregator_source(source):
                 continue
 
@@ -422,25 +428,62 @@ def fetch_from_google_news(query, source_name, tz):
 
 
 # =========================
-# Naver News  (✅ A안 적용: '1일 전'만 수집되게 published 세팅)
+# Naver News  (✅ A안 + Timeout/Retry 강화)
 # =========================
 def fetch_from_naver_news(keyword, source_name, tz, pages=8):
     base = "https://search.naver.com/search.naver"
-    headers = {"User-Agent": "Mozilla/5.0"}
+
+    # ✅ “네이버가 봇으로 오해”하는 걸 줄이기 위한 헤더
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+        "Referer": "https://search.naver.com/",
+    }
+
+    session = _build_http_session()
     articles = []
 
-    # ✅ 네이버 단계에서 "어제"를 미리 계산해서 바로 거르기
+    # ✅ 네이버 단계에서 "어제"만 통과
     yesterday = (_safe_now(tz).date() - dt.timedelta(days=1))
+
+    # 연속 실패가 쌓이면 네이버 자체를 잠시 포기(파이프라인은 계속)
+    consecutive_fail = 0
 
     for i in range(pages):
         start = 1 + i * 10
         params = {"where": "news", "query": keyword, "start": start}
-        r = requests.get(base, params=params, headers=headers, timeout=10)
-        soup = BeautifulSoup(r.text, "html.parser")
 
-        items = soup.select("div.news_wrap")
-        if not items:
-            break
+        try:
+            # ✅ read timeout을 10 → 25로 늘리고, connect timeout도 분리
+            r = session.get(base, params=params, headers=headers, timeout=(8, 25))
+            if r.status_code >= 400:
+                consecutive_fail += 1
+                # 429/5xx면 잠깐 쉬었다가 다음 페이지 시도
+                time.sleep(1.2)
+                if consecutive_fail >= 3:
+                    break
+                continue
+
+            soup = BeautifulSoup(r.text, "html.parser")
+            items = soup.select("div.news_wrap")
+            if not items:
+                break
+
+            consecutive_fail = 0  # 성공했으면 리셋
+
+        except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectionError):
+            # ✅ 여기서 죽지 말고 다음 페이지/키워드로 넘어가게
+            consecutive_fail += 1
+            time.sleep(1.5)
+            if consecutive_fail >= 3:
+                break
+            continue
+        except Exception:
+            consecutive_fail += 1
+            time.sleep(1.0)
+            if consecutive_fail >= 3:
+                break
+            continue
 
         for it in items:
             a = it.select_one("a.news_tit")
@@ -450,7 +493,7 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
             title = a.get("title", "")
             link = a.get("href", "")
 
-            # ✅ 네이버 링크 도메인 차단(안전망)
+            # ✅ 도메인 기준 재배포 차단
             host = urlparse(link).netloc.lower() if link else ""
             if _is_aggregator_host(host):
                 continue
@@ -464,15 +507,13 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
             press = it.select_one("a.info.press")
             source = press.get_text(strip=True) if press else source_name
 
-            # ✅ (추가) 네이버도 source 기준 재배포 차단(혹시 모를 변형)
             if _is_aggregator_source(source):
                 continue
 
-            # ✅ A안 핵심: 검색결과에 보이는 시간 텍스트를 파싱해서 published 결정
+            # ✅ A안: '1일 전' 같은 상대시간 파싱 → 어제만 통과
             time_text = _extract_naver_search_item_time_text(it)
             published = _parse_naver_time_text_to_dt(time_text, tz)
 
-            # ✅ published가 없거나(파싱 실패) 어제가 아니면 스킵
             if (published is None) or (published.astimezone(tz).date() != yesterday):
                 continue
 
@@ -486,6 +527,9 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
                     is_naver=True,
                 )
             )
+
+        # ✅ 너무 빠르게 긁으면 차단/지연이 심해져서 아주 짧게 쉬기
+        time.sleep(0.25)
 
     return articles
 
