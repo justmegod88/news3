@@ -99,7 +99,7 @@ news_sources:
   - name: 헤드럴경제
     host: heraldcorp.com
   - name: 엠투데이
-  - host: autodaily.co.kr
+    host: autodaily.co.kr
 
 
 
