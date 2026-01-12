@@ -11,8 +11,6 @@ import yaml
 from dateutil import parser as date_parser
 
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
 
 try:
@@ -42,9 +40,9 @@ class Article:
 # =========================
 FINANCE_KEYWORDS = [
     "주가", "주식", "증시", "투자", "재무", "실적",
-    "매출", "영업이익", "순이익", "배당","부동산",
-    "상장", "ipo", "공모", "증권", "리포트","선물",
-    "목표주가", "시가총액", "ir", "주주","오렌지",
+    "매출", "영업이익", "순이익", "배당", "부동산",
+    "상장", "ipo", "공모", "증권", "리포트", "선물",
+    "목표주가", "시가총액", "ir", "주주", "오렌지",
 ]
 
 # ✅ 약업(야쿠프/약업신문) 도메인: 날짜 오류(과거 기사 유입) 방지용
@@ -62,8 +60,7 @@ AGGREGATOR_BLOCK_HOSTS = [
     "newsbreak.com", "www.newsbreak.com",
 ]
 
-# ✅ (추가) 구글뉴스 RSS에서 링크가 news.google.com으로 남는 경우가 많아서
-# ✅ source(언론사명)로도 재배포를 차단
+# ✅ source(언론사명)로도 재배포를 차단(구글RSS에서 link가 news.google.com으로 남는 케이스 방어)
 AGGREGATOR_BLOCK_SOURCES = [
     "msn",
     "flipboard",
@@ -74,9 +71,9 @@ AGGREGATOR_BLOCK_SOURCES = [
 # 연예 / 예능 / 오락
 ENTERTAINMENT_HINTS = [
     "연예", "연예인", "예능", "방송", "드라마", "영화",
-    "배우", "아이돌", "가수", "뮤지컬","공연", "문화",
-    "유튜버", "크리에이터","특훈","스포츠","매달","선수",
-    "화제", "논란", "근황","게임","스타트업",
+    "배우", "아이돌", "가수", "뮤지컬", "공연", "문화",
+    "유튜버", "크리에이터", "특훈", "스포츠", "매달", "선수",
+    "화제", "논란", "근황", "게임", "스타트업",
     "팬미팅", "콘서트",
 ]
 
@@ -85,36 +82,36 @@ PERSONNEL_HINTS = [
     "인사", "임원 인사", "승진", "선임", "발탁",
     "대표이사", "사장", "부사장", "전무", "상무",
     "ceo", "cfo", "cto", "coo",
-    "취임", "영입","양성",
+    "취임", "영입", "양성",
 ]
 
 # 가수 다비치
 DAVICHI_SINGER_NAMES = ["강민경", "이해리"]
 DAVICHI_SINGER_HINTS = [
-    "가수", "음원", "신곡", "컴백", "앨범", "연예인","개그맨", "연기", "배우","뮤지컬","뮤지션","1위",
-    "콘서트", "공연", "뮤직비디오","강민경","이해리","개그","듀오","카메라","드라마","연극","탤런트",
-    "차트", "유튜브", "방송", "예능", "ost", "연예","무대","히든싱어","가요","음악","시상식", "프로그램",
+    "가수", "음원", "신곡", "컴백", "앨범", "연예인", "개그맨", "연기", "배우", "뮤지컬", "뮤지션", "1위",
+    "콘서트", "공연", "뮤직비디오", "강민경", "이해리", "개그", "듀오", "카메라", "드라마", "연극", "탤런트",
+    "차트", "유튜브", "방송", "예능", "ost", "연예", "무대", "히든싱어", "가요", "음악", "시상식", "프로그램",
 ]
 
 # 얼굴/뷰티 노안
 FACE_AGING_HINTS = [
     "얼굴", "피부", "주름", "리프팅", "안티에이징",
-    "동안", "보톡스", "필러", "시술", "화장품", "뷰티","카메라","나이", "젊은데",
+    "동안", "보톡스", "필러", "시술", "화장품", "뷰티", "카메라", "나이", "젊은데",
 ]
 
 # 포털 광고/ 낚시형 요약 문구
 AD_SNIPPET_HINTS = [
     "모두가 속았다", "이걸 몰랐", "충격", "지금 확인", "알고 보니", "이유는?", "화제",
-    "논란", "깜짝","지금 다운로드", "지금 클릭", "지금 확인",
+    "논란", "깜짝", "지금 다운로드", "지금 클릭", "지금 확인",
 ]
 
 # 광학/렌즈 업계 화이트리스트
 INDUSTRY_WHITELIST = [
-    "안경", "안경원","안경사", "호야", "에실로","자이스", "노안 렌즈", "노안 교정",
-    "렌즈", "콘택트", "콘택트렌즈","오렌즈", "하피크리스틴",
-    "안과", "검안", "시력","콘택트 렌즈", "contact lens",
+    "안경", "안경원", "안경사", "호야", "에실로", "자이스", "노안 렌즈", "노안 교정",
+    "렌즈", "콘택트", "콘택트렌즈", "오렌즈", "하피크리스틴",
+    "안과", "검안", "시력", "콘택트 렌즈", "contact lens",
     "아큐브", "acuvue",
-    "존슨앤드존슨", "알콘", "쿠퍼비전", "바슈롬","쿠퍼 비젼",
+    "존슨앤드존슨", "알콘", "쿠퍼비전", "바슈롬", "쿠퍼 비젼",
     "인터로조", "클라렌",
     "쿠퍼", "렌즈미", "안경진정성"
 ]
@@ -128,11 +125,18 @@ def _normalize(text: str) -> str:
 
 
 def _is_aggregator_host(host: str) -> bool:
+    """
+    ✅ 재배포/애그리게이터 도메인 차단용
+    - 정확히 일치 + 서브도메인까지 커버(endswith)
+    """
     h = (host or "").lower().strip()
     if not h:
         return False
+
+    # netloc에 포트가 붙는 케이스 제거
     if ":" in h:
         h = h.split(":", 1)[0]
+
     for b in AGGREGATOR_BLOCK_HOSTS:
         b = b.lower()
         if h == b or h.endswith("." + b):
@@ -141,6 +145,9 @@ def _is_aggregator_host(host: str) -> bool:
 
 
 def _is_aggregator_source(source: str) -> bool:
+    """
+    ✅ source(언론사명) 기반 차단
+    """
     s = (source or "").strip().lower()
     if not s:
         return False
@@ -212,33 +219,181 @@ def _safe_now(tz):
 
 
 # =========================
-# HTTP Session (Retry)
+# Networking helpers (timeout/retry)
 # =========================
-def _build_http_session() -> requests.Session:
-    """
-    ✅ 네이버에서 ReadTimeout/일시적 차단이 자주 나서
-    - 자동 재시도(retry)
-    - 백오프(backoff)
-    - 429/5xx 처리
-    를 넣은 Session을 사용.
-    """
+def _make_session():
     s = requests.Session()
-
-    retry = Retry(
-        total=5,
-        connect=5,
-        read=5,
-        status=5,
-        backoff_factor=0.8,  # 0.8s, 1.6s, 3.2s... 식으로 증가
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["GET"],
-        raise_on_status=False,
-    )
-
-    adapter = HTTPAdapter(max_retries=retry, pool_connections=20, pool_maxsize=20)
-    s.mount("https://", adapter)
-    s.mount("http://", adapter)
+    s.headers.update({"User-Agent": "Mozilla/5.0"})
     return s
+
+
+def _get_with_retry(session, url, *, params=None, timeout=15, tries=3, sleep_sec=1.2):
+    """
+    ✅ 네이버/원문 페이지 ReadTimeout 때문에 워크플로가 통째로 죽는 걸 방지
+    - 실패하면 None 반환(상위에서 그냥 skip)
+    """
+    for i in range(tries):
+        try:
+            r = session.get(url, params=params, timeout=timeout)
+            if r.status_code >= 400:
+                return None
+            return r
+        except requests.exceptions.RequestException:
+            if i == tries - 1:
+                return None
+            time.sleep(sleep_sec * (i + 1))
+    return None
+
+
+# =========================
+# Date parsing helpers
+# =========================
+_REL_TIME_RE = re.compile(r"(?P<num>\d+)\s*(?P<unit>분|시간|일|주|개월|달|년)\s*전")
+
+
+def _parse_relative_time_kor(text: str, now_dt: dt.datetime) -> Optional[dt.datetime]:
+    """
+    '3시간 전', '15분 전', '1일 전' 같은 상대시간을 now_dt 기준으로 환산
+    """
+    if not text:
+        return None
+    m = _REL_TIME_RE.search(text.strip())
+    if not m:
+        return None
+
+    num = int(m.group("num"))
+    unit = m.group("unit")
+
+    if unit == "분":
+        return now_dt - dt.timedelta(minutes=num)
+    if unit == "시간":
+        return now_dt - dt.timedelta(hours=num)
+    if unit == "일":
+        return now_dt - dt.timedelta(days=num)
+    if unit == "주":
+        return now_dt - dt.timedelta(weeks=num)
+    if unit in ("개월", "달"):
+        # 정확한 월 계산은 복잡하지만 "대략적 어제 필터" 목적상 충분
+        return now_dt - dt.timedelta(days=30 * num)
+    if unit == "년":
+        return now_dt - dt.timedelta(days=365 * num)
+
+    return None
+
+
+def _parse_datetime_any(value: str, tz) -> Optional[dt.datetime]:
+    """
+    다양한 포맷을 dateutil로 파싱 + tz 적용
+    """
+    if not value:
+        return None
+    try:
+        d = date_parser.parse(value)
+        if d.tzinfo is None:
+            return d.replace(tzinfo=tz)
+        return d.astimezone(tz)
+    except Exception:
+        return None
+
+
+def _extract_datetime_from_text_blob(text: str, tz) -> Optional[dt.datetime]:
+    """
+    본문 텍스트에서 흔한 한국 기사 날짜 패턴을 긁어오기
+    예) '입력 2026.01.12 22:04', '2026-01-12 22:04', '2026. 01. 12. 22:04'
+    """
+    if not text:
+        return None
+
+    candidates = []
+
+    # 1) YYYY.MM.DD HH:MM
+    for m in re.finditer(r"(\d{4}\s*[./-]\s*\d{1,2}\s*[./-]\s*\d{1,2})\s*(\d{1,2}:\d{2})", text):
+        candidates.append(f"{m.group(1)} {m.group(2)}")
+
+    # 2) YYYY.MM.DD (시간이 없는 경우)
+    for m in re.finditer(r"(\d{4}\s*[./-]\s*\d{1,2}\s*[./-]\s*\d{1,2})", text):
+        candidates.append(m.group(1))
+
+    for c in candidates:
+        d = _parse_datetime_any(c, tz)
+        if d:
+            return d
+
+    return None
+
+
+def extract_published_from_article_page(url: str, tz, session=None) -> Optional[dt.datetime]:
+    """
+    ✅ 핵심: '원문 페이지'에서 published를 뽑아 RSS/검색목록 날짜 오염을 교정
+    우선순위:
+      - meta(article:published_time / og:pubdate / pubdate / date 등)
+      - JSON-LD(datePublished / dateModified)
+      - 본문 텍스트 패턴(입력/수정 표기 포함)
+      - 상대시간(분/시간/일 전) → now 기준 환산
+    """
+    if not url:
+        return None
+
+    session = session or _make_session()
+    r = _get_with_retry(session, url, timeout=15, tries=2, sleep_sec=1.0)
+    if not r:
+        return None
+
+    soup = BeautifulSoup(r.text, "html.parser")
+
+    # 1) meta tags
+    meta_props = [
+        ("property", "article:published_time"),
+        ("property", "og:pubdate"),
+        ("name", "pubdate"),
+        ("name", "date"),
+        ("name", "parsely-pub-date"),
+        ("itemprop", "datePublished"),
+        ("itemprop", "dateModified"),
+    ]
+    for attr, key in meta_props:
+        tag = soup.find("meta", attrs={attr: key})
+        if tag and tag.get("content"):
+            d = _parse_datetime_any(tag.get("content"), tz)
+            if d:
+                return d
+
+    # 2) JSON-LD
+    for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        try:
+            raw = script.get_text(" ", strip=True)
+            if not raw:
+                continue
+            # 간단 파싱(완전 JSON이 아닌 케이스 대비)
+            # datePublished / dateModified 문자열만 regex로 뽑기
+            m = re.search(r'"datePublished"\s*:\s*"([^"]+)"', raw)
+            if m:
+                d = _parse_datetime_any(m.group(1), tz)
+                if d:
+                    return d
+            m = re.search(r'"dateModified"\s*:\s*"([^"]+)"', raw)
+            if m:
+                d = _parse_datetime_any(m.group(1), tz)
+                if d:
+                    return d
+        except Exception:
+            pass
+
+    # 3) visible text patterns
+    text_blob = soup.get_text(" ", strip=True)
+
+    # 3-1) 상대시간(몇시간 전)
+    now_dt = _safe_now(tz)
+    rel = _parse_relative_time_kor(text_blob, now_dt)
+    if rel:
+        return rel
+
+    # 3-2) 일반 날짜 패턴
+    d = _extract_datetime_from_text_blob(text_blob, tz)
+    if d:
+        return d
+
+    return None
 
 
 # =========================
@@ -280,50 +435,35 @@ def resolve_final_url(link: str) -> str:
     return link
 
 
-# =========================
-# ✅ A안: 네이버 검색결과 상대시간 파싱
-# =========================
-def _parse_naver_time_text_to_dt(text: str, tz) -> Optional[dt.datetime]:
-    if not text:
-        return None
+def _parse_naver_result_time(it: BeautifulSoup, tz) -> Optional[dt.datetime]:
+    """
+    네이버 검색 결과에서 보이는 '3시간 전', '2026.01.12.' 같은 시간을 파싱
+    - 성공하면 KST datetime 반환
+    """
+    now_dt = _safe_now(tz)
 
-    s = text.strip()
-    now = _safe_now(tz)
+    # 네이버 검색 결과는 보통 a.info / span.info / span 등 여러 형태가 섞임
+    info_texts = []
+    for sel in ["span.info", "a.info", "div.info_group span.info", "div.info_group a.info"]:
+        for t in it.select(sel):
+            s = t.get_text(" ", strip=True)
+            if s:
+                info_texts.append(s)
 
-    # 절대날짜: 2026.01.10. 형태
-    m = re.search(r"(\d{4})\.(\d{1,2})\.(\d{1,2})\.", s)
-    if m:
-        y, mo, d = map(int, m.groups())
-        return dt.datetime(y, mo, d, 0, 0, 0, tzinfo=tz)
+    # 먼저 상대시간 우선
+    for s in info_texts:
+        rel = _parse_relative_time_kor(s, now_dt)
+        if rel:
+            return rel
 
-    # 상대시간: n분 전 / n시간 전 / n일 전 / n개월 전 / n년 전
-    m = re.search(r"(\d+)\s*(분|시간|일|개월|년)\s*전", s)
-    if not m:
-        return None
+    # 다음 날짜형
+    for s in info_texts:
+        # 예: '2026.01.12.' / '2026.01.12'
+        d = _parse_datetime_any(s.replace(".", "."), tz)
+        if d:
+            return d
 
-    n = int(m.group(1))
-    unit = m.group(2)
-
-    if unit == "분":
-        return now - dt.timedelta(minutes=n)
-    if unit == "시간":
-        return now - dt.timedelta(hours=n)
-    if unit == "일":
-        return now - dt.timedelta(days=n)
-
-    # 개월/년은 어제 수집 목적상 None 처리(탈락)
     return None
-
-
-def _extract_naver_search_item_time_text(news_wrap) -> str:
-    for sp in news_wrap.select("span.info"):
-        t = sp.get_text(" ", strip=True)
-        if re.search(r"(\d+\s*(분|시간|일|개월|년)\s*전)|(\d{4}\.\d{1,2}\.\d{1,2}\.)", t):
-            return t
-
-    txt = news_wrap.get_text(" ", strip=True)
-    m = re.search(r"(\d+\s*(분|시간|일|개월|년)\s*전)|(\d{4}\.\d{1,2}\.\d{1,2}\.)", txt)
-    return m.group(0) if m else ""
 
 
 # =========================
@@ -374,11 +514,12 @@ def deduplicate_articles(articles: List[Article]) -> List[Article]:
 
 
 # =========================
-# Google News (✅ 안정화 버전)
+# Google News (✅ 본문 날짜 우선 교정 버전)
 # =========================
 def fetch_from_google_news(query, source_name, tz):
     feed = feedparser.parse(build_google_news_url(query))
     articles = []
+    session = _make_session()
 
     for e in getattr(feed, "entries", []):
         try:
@@ -388,11 +529,12 @@ def fetch_from_google_news(query, source_name, tz):
             summary = clean_summary(getattr(e, "summary", "") or "")
             link = resolve_final_url(getattr(e, "link", "") or "")
 
-            # ✅ 0) 도메인 기준 재배포 차단
+            # ✅ 0) 도메인 기준 재배포 차단(링크가 msn 등으로 바로 오는 경우)
             host = urlparse(link).netloc.lower() if link else ""
             if _is_aggregator_host(host):
                 continue
 
+            # ✅ 1) RSS published/updated(기본값)
             pub_val = getattr(e, "published", None) or getattr(e, "updated", None)
             if pub_val:
                 published = parse_rss_datetime(pub_val, tz)
@@ -412,6 +554,11 @@ def fetch_from_google_news(query, source_name, tz):
             if should_exclude_article(title, summary):
                 continue
 
+            # ✅ 2) 핵심: "본문 날짜"가 뽑히면 published를 덮어쓰기
+            page_dt = extract_published_from_article_page(link, tz, session=session)
+            if page_dt:
+                published = page_dt
+
             articles.append(
                 Article(
                     title=title,
@@ -428,62 +575,27 @@ def fetch_from_google_news(query, source_name, tz):
 
 
 # =========================
-# Naver News  (✅ A안 + Timeout/Retry 강화)
+# Naver News (✅ 결과시간/본문날짜로 published 세팅 + timeout 안전)
 # =========================
 def fetch_from_naver_news(keyword, source_name, tz, pages=8):
     base = "https://search.naver.com/search.naver"
-
-    # ✅ “네이버가 봇으로 오해”하는 걸 줄이기 위한 헤더
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
-        "Referer": "https://search.naver.com/",
-    }
-
-    session = _build_http_session()
+    session = _make_session()
     articles = []
-
-    # ✅ 네이버 단계에서 "어제"만 통과
-    yesterday = (_safe_now(tz).date() - dt.timedelta(days=1))
-
-    # 연속 실패가 쌓이면 네이버 자체를 잠시 포기(파이프라인은 계속)
-    consecutive_fail = 0
 
     for i in range(pages):
         start = 1 + i * 10
         params = {"where": "news", "query": keyword, "start": start}
 
-        try:
-            # ✅ read timeout을 10 → 25로 늘리고, connect timeout도 분리
-            r = session.get(base, params=params, headers=headers, timeout=(8, 25))
-            if r.status_code >= 400:
-                consecutive_fail += 1
-                # 429/5xx면 잠깐 쉬었다가 다음 페이지 시도
-                time.sleep(1.2)
-                if consecutive_fail >= 3:
-                    break
-                continue
-
-            soup = BeautifulSoup(r.text, "html.parser")
-            items = soup.select("div.news_wrap")
-            if not items:
-                break
-
-            consecutive_fail = 0  # 성공했으면 리셋
-
-        except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectionError):
-            # ✅ 여기서 죽지 말고 다음 페이지/키워드로 넘어가게
-            consecutive_fail += 1
-            time.sleep(1.5)
-            if consecutive_fail >= 3:
-                break
+        r = _get_with_retry(session, base, params=params, timeout=15, tries=3, sleep_sec=1.2)
+        if not r:
+            # ✅ 네이버가 잠깐 느려도 워크플로 통째로 죽지 않게
             continue
-        except Exception:
-            consecutive_fail += 1
-            time.sleep(1.0)
-            if consecutive_fail >= 3:
-                break
-            continue
+
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        items = soup.select("div.news_wrap")
+        if not items:
+            break
 
         for it in items:
             a = it.select_one("a.news_tit")
@@ -493,7 +605,7 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
             title = a.get("title", "")
             link = a.get("href", "")
 
-            # ✅ 도메인 기준 재배포 차단
+            # ✅ 네이버 링크 도메인 차단(안전망)
             host = urlparse(link).netloc.lower() if link else ""
             if _is_aggregator_host(host):
                 continue
@@ -507,15 +619,17 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
             press = it.select_one("a.info.press")
             source = press.get_text(strip=True) if press else source_name
 
+            # ✅ source 기준 재배포 차단(혹시 모를 변형)
             if _is_aggregator_source(source):
                 continue
 
-            # ✅ A안: '1일 전' 같은 상대시간 파싱 → 어제만 통과
-            time_text = _extract_naver_search_item_time_text(it)
-            published = _parse_naver_time_text_to_dt(time_text, tz)
+            # ✅ 1) 네이버 검색결과에 보이는 시간 먼저 파싱(3시간 전 / 2026.01.12.)
+            published = _parse_naver_result_time(it, tz) or _safe_now(tz)
 
-            if (published is None) or (published.astimezone(tz).date() != yesterday):
-                continue
+            # ✅ 2) 가능하면 본문(n.news.naver.com 등) 들어가서 published를 덮어쓰기(정확도 최고)
+            page_dt = extract_published_from_article_page(link, tz, session=session)
+            if page_dt:
+                published = page_dt
 
             articles.append(
                 Article(
@@ -527,9 +641,6 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
                     is_naver=True,
                 )
             )
-
-        # ✅ 너무 빠르게 긁으면 차단/지연이 심해져서 아주 짧게 쉬기
-        time.sleep(0.25)
 
     return articles
 
