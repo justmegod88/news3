@@ -44,6 +44,11 @@ keywords:
   - 라섹
   - 라식
   - 인터로조
+  - 네오비젼
+  - 콘택트렌즈
+  - 콘텍트렌즈
+  - 드림렌즈
+  - 근시억제
 
   # 영문 병행
   - soft contact lens
@@ -91,6 +96,10 @@ news_sources:
     host: smarttoday.co.kr
   - name: 시선 뉴스 
     host: sisunnews.co.kr
+  - name: 헤드럴경제
+    host: heraldcorp.com
+  - name: 엠투데이
+  - host: autodaily.co.kr
 
 
 
