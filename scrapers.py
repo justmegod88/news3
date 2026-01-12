@@ -260,6 +260,65 @@ def resolve_final_url(link: str) -> str:
 
 
 # =========================
+# ✅ A안: 네이버 검색결과 상대시간 파싱
+# =========================
+def _parse_naver_time_text_to_dt(text: str, tz) -> Optional[dt.datetime]:
+    """
+    네이버 검색결과에 흔히 나오는 시간표현:
+    - '1일 전', '3시간 전', '25분 전'
+    - '8개월 전', '2년 전' (→ 어제 수집 목적상 None 처리해서 탈락시키는 게 안전)
+    - (가끔) 'YYYY.MM.DD.' 형태의 절대날짜
+    """
+    if not text:
+        return None
+
+    s = text.strip()
+    now = _safe_now(tz)
+
+    # 절대날짜: 2026.01.10. 형태
+    m = re.search(r"(\d{4})\.(\d{1,2})\.(\d{1,2})\.", s)
+    if m:
+        y, mo, d = map(int, m.groups())
+        return dt.datetime(y, mo, d, 0, 0, 0, tzinfo=tz)
+
+    # 상대시간: n분 전 / n시간 전 / n일 전 / n개월 전 / n년 전
+    m = re.search(r"(\d+)\s*(분|시간|일|개월|년)\s*전", s)
+    if not m:
+        return None
+
+    n = int(m.group(1))
+    unit = m.group(2)
+
+    if unit == "분":
+        return now - dt.timedelta(minutes=n)
+    if unit == "시간":
+        return now - dt.timedelta(hours=n)
+    if unit == "일":
+        return now - dt.timedelta(days=n)
+
+    # 개월/년은 정확 변환 애매 + '어제만 수집'에 불필요
+    # → None 반환해서 어제 필터(또는 네이버 단계)에서 탈락
+    return None
+
+
+def _extract_naver_search_item_time_text(news_wrap) -> str:
+    """
+    네이버 검색결과 카드에서 날짜/상대시간 텍스트를 최대한 안정적으로 뽑기.
+    보통 span.info 중 하나에 '1일 전' 같은 텍스트가 있음.
+    """
+    # 1) span.info들 훑기
+    for sp in news_wrap.select("span.info"):
+        t = sp.get_text(" ", strip=True)
+        if re.search(r"(\d+\s*(분|시간|일|개월|년)\s*전)|(\d{4}\.\d{1,2}\.\d{1,2}\.)", t):
+            return t
+
+    # 2) 혹시 다른 구조(backup)
+    txt = news_wrap.get_text(" ", strip=True)
+    m = re.search(r"(\d+\s*(분|시간|일|개월|년)\s*전)|(\d{4}\.\d{1,2}\.\d{1,2}\.)", txt)
+    return m.group(0) if m else ""
+
+
+# =========================
 # Deduplication (URL + Title)
 # =========================
 def _normalize_url(url: str) -> str:
@@ -363,12 +422,15 @@ def fetch_from_google_news(query, source_name, tz):
 
 
 # =========================
-# Naver News
+# Naver News  (✅ A안 적용: '1일 전'만 수집되게 published 세팅)
 # =========================
 def fetch_from_naver_news(keyword, source_name, tz, pages=8):
     base = "https://search.naver.com/search.naver"
     headers = {"User-Agent": "Mozilla/5.0"}
     articles = []
+
+    # ✅ 네이버 단계에서 "어제"를 미리 계산해서 바로 거르기
+    yesterday = (_safe_now(tz).date() - dt.timedelta(days=1))
 
     for i in range(pages):
         start = 1 + i * 10
@@ -406,11 +468,19 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8):
             if _is_aggregator_source(source):
                 continue
 
+            # ✅ A안 핵심: 검색결과에 보이는 시간 텍스트를 파싱해서 published 결정
+            time_text = _extract_naver_search_item_time_text(it)
+            published = _parse_naver_time_text_to_dt(time_text, tz)
+
+            # ✅ published가 없거나(파싱 실패) 어제가 아니면 스킵
+            if (published is None) or (published.astimezone(tz).date() != yesterday):
+                continue
+
             articles.append(
                 Article(
                     title=title,
                     link=link,
-                    published=_safe_now(tz),
+                    published=published,
                     source=source,
                     summary=summary,
                     is_naver=True,
