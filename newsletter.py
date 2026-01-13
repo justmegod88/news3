@@ -128,7 +128,7 @@ def _pick_representative(group):
 # =========================
 # ✅ (C) 기사 리스트용 중복 제거 + 묶기 (기존 유지: threshold=0.80)
 # =========================
-def dedupe_and_group_articles(articles, threshold: float = 0.78):
+def dedupe_and_group_articles(articles, threshold: float = 0.73):
     """
     반환: 대표 기사 리스트
     대표 기사에는 rep.duplicates = [{source, link, title}, ...] 가 생김
@@ -232,7 +232,7 @@ def remove_cross_category_duplicates(*category_lists):
 
 
 # =========================
-# ✅ (E) 브리핑(상단 요약) 전용 중복 제거: threshold=0.70 (요청 반영)
+# ✅ (E) 브리핑(상단 요약) 전용 중복 제거: threshold=0.65 (요청 반영)
 # =========================
 def _brief_norm(s: str) -> str:
     s = (s or "").lower().strip()
