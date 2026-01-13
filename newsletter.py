@@ -173,9 +173,9 @@ def dedupe_and_group_articles(articles, threshold: float = 0.78):
             ex_title = getattr(ex, "title", "") or ""
             ex_summary = getattr(ex, "summary", "") or ""
 
-           # if base_summary and ex_summary:
-           #     sim = _similarity(base_summary, ex_summary)
-           # else:
+           if base_summary and ex_summary:
+                sim = _similarity(base_summary, ex_summary)
+            else:
                 sim = _similarity(base_title, ex_title)
 
             if sim >= threshold:
@@ -252,7 +252,7 @@ def _brief_sim(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 
-def dedupe_for_brief(articles, threshold: float = 0.78, max_keep: int = 10):
+def dedupe_for_brief(articles, threshold: float = 0.70, max_keep: int = 10):
     """
     ✅ 브리핑(상단 AI 요약) 전용 중복 제거
     - "주제 같으면 제거" 목적이라 threshold를 0.50로 낮춤 (요청 반영)
@@ -302,7 +302,7 @@ def select_articles_for_brief(
     """
     - 광고/단순 이미지로 summary가 빈 값인 기사는 제외
     - 카테고리별로 1~2개씩 분산 선택(맨 위 편향 완화)
-    - 브리핑 전용 dedupe(주제 중복 제거): threshold=0.78 적용
+    - 브리핑 전용 dedupe(주제 중복 제거): threshold=0.70 적용
     """
     pools = [
         ("ACUVUE", [a for a in (acuvue_articles or []) if _has_summary(a)]),
@@ -335,8 +335,8 @@ def select_articles_for_brief(
         seen.add(key)
         deduped.append(a)
 
-    # ✅ 3) 브리핑 전용 "주제 중복" 제거 (요청: 0.78)
-    deduped = dedupe_for_brief(deduped, threshold=0.78, max_keep=max_items)
+    # ✅ 3) 브리핑 전용 "주제 중복" 제거 (요청: 0.70)
+    deduped = dedupe_for_brief(deduped, threshold=0.70, max_keep=max_items)
 
     return deduped[:max_items]
 
