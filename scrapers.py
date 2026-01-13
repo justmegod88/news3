@@ -21,6 +21,24 @@ GOOGLE_NEWS_RSS_BASE = "https://news.google.com/rss/search"
 
 
 # =========================
+# ✅ Debug toggle
+# - config.yaml에 debug: true 넣으면 로그가 많이 찍힘
+# - 또는 환경변수 DEBUG=1 로 켤 수 있음
+# =========================
+import os
+def _debug_enabled(cfg=None) -> bool:
+    if os.getenv("DEBUG", "").strip() in ("1", "true", "True", "YES", "yes"):
+        return True
+    if cfg and isinstance(cfg, dict):
+        return bool(cfg.get("debug", False))
+    return False
+
+def _dprint(cfg, msg: str):
+    if _debug_enabled(cfg):
+        print(msg)
+
+
+# =========================
 # Data model
 # =========================
 @dataclass
@@ -35,7 +53,7 @@ class Article:
 
 
 # =========================
-# Exclusion rules
+# Exclusion rules  (✅ 여기 "단어" 그대로 유지)
 # =========================
 FINANCE_KEYWORDS = [
     "주가", "주식", "증시", "투자", "재무", "실적",
@@ -123,6 +141,7 @@ FASHION_HINTS = [
     "스타일", "코디", "브랜드", "쇼핑", "온라인몰", "패션플랫폼", "편집숍"
 ]
 
+
 # =========================
 # Utils
 # =========================
@@ -162,57 +181,61 @@ def _is_aggregator_source(source: str) -> bool:
     return any(b in s for b in AGGREGATOR_BLOCK_SOURCES)
 
 
-def should_exclude_article(title: str, summary: str = "") -> bool:
+# ✅ (추가) 너 코드에서 호출하는데 정의가 없어서 런타임 에러나는 함수
+def _has_industry_whitelist(full: str) -> bool:
+    return any(i in full for i in INDUSTRY_WHITELIST)
+
+
+# ✅ 디버깅을 위해 "왜 제외됐는지" reason을 리턴하는 버전도 제공 (기본 동작은 그대로 bool)
+def should_exclude_article(title: str, summary: str = "", return_reason: bool = False):
     full = _normalize(title + " " + summary)
 
     # ✅ (추가) 무신사/K패션 잡음 제거
     # - 화이트리스트(콘택트렌즈 등) 있으면 살림
     if any(h in full for h in FASHION_HINTS):
         if not _has_industry_whitelist(full):
-            return True
-    
-    
-    
+            return (True, "FASHION_HINTS") if return_reason else True
+
     # 1) 투자 / 재무
     if any(k in full for k in FINANCE_KEYWORDS):
         if not any(i in full for i in INDUSTRY_WHITELIST):
-            return True
+            return (True, "FINANCE_KEYWORDS") if return_reason else True
 
     # 2) 얼굴/뷰티 노안
     if "노안" in full and any(k in full for k in FACE_AGING_HINTS):
         if not any(i in full for i in INDUSTRY_WHITELIST):
-            return True
+            return (True, "FACE_AGING_HINTS + 노안") if return_reason else True
 
     # 3) 가수 다비치
     if any(n in full for n in DAVICHI_SINGER_NAMES):
-        return True
+        return (True, "DAVICHI_SINGER_NAMES") if return_reason else True
     if "다비치" in full or "davichi" in full:
         if any(h in full for h in DAVICHI_SINGER_HINTS):
             if not any(i in full for i in INDUSTRY_WHITELIST):
-                return True
+                return (True, "DAVICHI_SINGER_HINTS") if return_reason else True
 
     # 4) 연예 / 예능 / 오락
     if any(h in full for h in ENTERTAINMENT_HINTS):
         if not any(i in full for i in INDUSTRY_WHITELIST):
-            return True
+            return (True, "ENTERTAINMENT_HINTS") if return_reason else True
 
     # 5) 타 업계 인사 / 승진
     if any(h in full for h in PERSONNEL_HINTS):
         if not any(i in full for i in INDUSTRY_WHITELIST):
-            return True
+            return (True, "PERSONNEL_HINTS") if return_reason else True
 
     # 6) 포털 광고 / 카드형 요약 제거
     if summary:
         if any(h in summary for h in AD_SNIPPET_HINTS):
             if not any(i in full for i in INDUSTRY_WHITELIST):
-                return True
+                return (True, "AD_SNIPPET_HINTS") if return_reason else True
 
     # 7) 요약이 너무 짧은 카드형 문구 제거
     if summary and len(summary) < 40:
         if not any(i in full for i in INDUSTRY_WHITELIST):
-            return True
+            return (True, "SHORT_SUMMARY(<40)") if return_reason else True
 
-    return False
+    return (False, "") if return_reason else False
 
 
 # =========================
@@ -336,8 +359,6 @@ def _parse_naver_time_text_to_published(time_text: str, anchor: dt.datetime, tz)
         y = int(m.group(1))
         mo = int(m.group(2))
         d = int(m.group(3))
-        # 네이버는 날짜만 주는 경우가 많아서 "그 날짜의 정오"로 두고 date 비교만 하게 처리
-        # (시간이 없는데 00:00로 두면 경계에서 오판 가능성 ↑)
         try:
             return dt.datetime(y, mo, d, 12, 0, 0, tzinfo=tz)
         except Exception:
@@ -349,17 +370,13 @@ def _parse_naver_time_text_to_published(time_text: str, anchor: dt.datetime, tz)
 def _extract_naver_time_text(it) -> str:
     """
     네이버 검색 결과에서 '4시간 전 / 1일 전 / 2026.01.12.' 같은 텍스트를 뽑음.
-    네이버 마크업이 자주 바뀌어서, 여러 후보를 순서대로 시도.
     """
-    # 1) 일반적으로 많이 잡히는 케이스: span.info
     cand = it.select("span.info")
     for s in cand:
         txt = s.get_text(" ", strip=True)
-        # press(언론사)도 span.info로 나오는 경우가 있어, 시간 패턴만 통과
         if _NAVER_REL_RE.match(txt) or _NAVER_ABS_RE.match(txt):
             return txt
 
-    # 2) a.info / span.info_group 내
     cand2 = it.select("a.info, span.info_group span")
     for s in cand2:
         txt = s.get_text(" ", strip=True)
@@ -417,11 +434,13 @@ def deduplicate_articles(articles: List[Article]) -> List[Article]:
 
 
 # =========================
-# Google News (✅ 안정화 버전)
+# Google News (✅ 기존 유지)
 # =========================
-def fetch_from_google_news(query, source_name, tz):
+def fetch_from_google_news(query, source_name, tz, cfg=None):
     feed = feedparser.parse(build_google_news_url(query))
     articles = []
+
+    _dprint(cfg, f"[GOOGLE] query='{query}' entries={len(getattr(feed, 'entries', []) or [])}")
 
     for e in getattr(feed, "entries", []):
         try:
@@ -431,12 +450,11 @@ def fetch_from_google_news(query, source_name, tz):
             summary = clean_summary(getattr(e, "summary", "") or "")
             link = resolve_final_url(getattr(e, "link", "") or "")
 
-            # ✅ 0) 도메인 기준 재배포 차단(링크가 msn 등으로 바로 오는 경우)
             host = urlparse(link).netloc.lower() if link else ""
             if _is_aggregator_host(host):
+                _dprint(cfg, f"  [GOOGLE] drop aggregator host={host} title={title[:50]}")
                 continue
 
-            # ✅ published/updated가 없는 경우가 있어서 안전 처리
             pub_val = getattr(e, "published", None) or getattr(e, "updated", None)
             if pub_val:
                 published = parse_rss_datetime(pub_val, tz)
@@ -449,12 +467,13 @@ def fetch_from_google_news(query, source_name, tz):
                 or source_name
             )
 
-            # ✅ 0.5) (추가) source 기준 재배포 차단
-            #     링크가 news.google.com으로 남아도 "MSN" 같은 source면 컷
             if _is_aggregator_source(source):
+                _dprint(cfg, f"  [GOOGLE] drop aggregator source={source} title={title[:50]}")
                 continue
 
-            if should_exclude_article(title, summary):
+            ex, reason = should_exclude_article(title, summary, return_reason=True)
+            if ex:
+                _dprint(cfg, f"  [GOOGLE] drop reason={reason} title={title[:50]}")
                 continue
 
             articles.append(
@@ -466,18 +485,23 @@ def fetch_from_google_news(query, source_name, tz):
                     summary=summary,
                 )
             )
-        except Exception:
+        except Exception as ex:
+            _dprint(cfg, f"  [GOOGLE] exception: {ex}")
             continue
 
     return articles
 
 
 # =========================
-# Naver News
+# Naver News (✅ 디버깅 로그 추가)
 # =========================
 def fetch_from_naver_news(keyword, source_name, tz, pages=8, cfg=None):
     base = "https://search.naver.com/search.naver"
-    headers = {"User-Agent": "Mozilla/5.0"}
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+        "Referer": "https://search.naver.com/",
+    }
     articles = []
 
     # ✅ 기준 시간(anchor) = 뉴스레터 발행시간 (cfg가 없으면 now)
@@ -486,48 +510,78 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8, cfg=None):
     else:
         anchor = _get_newsletter_anchor(cfg, tz)
 
+    _dprint(cfg, f"\n[NAVER] keyword='{keyword}' pages={pages} anchor={anchor.isoformat()}")
+
     for i in range(pages):
         start = 1 + i * 10
         params = {"where": "news", "query": keyword, "start": start}
-        r = requests.get(base, params=params, headers=headers, timeout=10)
-        soup = BeautifulSoup(r.text, "html.parser")
 
-        items = soup.select("div.news_wrap")
-        if not items:
+        try:
+            r = requests.get(base, params=params, headers=headers, timeout=15)
+        except Exception as ex:
+            _dprint(cfg, f"[NAVER] request exception page={i+1} ex={ex}")
             break
 
-        for it in items:
+        txt = r.text or ""
+        _dprint(cfg, f"[NAVER] page={i+1} status={r.status_code} url={r.url} len={len(txt)}")
+
+        # ✅ 차단/캡차/봇 페이지 감지(대표 키워드)
+        block_signals = ["자동입력", "captcha", "접근이 제한", "비정상적인 접근", "로그인이 필요", "검색결과를 제공할 수 없습니다"]
+        if r.status_code in (401, 403, 429) or any(s in txt.lower() for s in ["captcha"]) or any(s in txt for s in block_signals):
+            _dprint(cfg, "[NAVER] ⚠️ possible blocked/captcha page detected")
+            # 차단이면 이후 페이지가 의미 없어서 중단
+            break
+
+        soup = BeautifulSoup(txt, "html.parser")
+
+        items = soup.select("div.news_wrap")
+        _dprint(cfg, f"[NAVER] items found={len(items)} (selector: div.news_wrap)")
+
+        # ✅ 네이버 마크업 변경으로 selector가 깨졌을 수도 있어서 보조 체크
+        if not items:
+            alt = soup.select("li.bx")  # 예비 후보
+            _dprint(cfg, f"[NAVER] items alt(li.bx)={len(alt)}")
+            if not alt:
+                break
+            # alt를 items처럼 돌리기 위해 대체
+            items = alt
+
+        for idx, it in enumerate(items[:50]):  # 한 페이지에서 너무 많이 찍히면 로그 폭발해서 안전하게 50개까지만
             a = it.select_one("a.news_tit")
             if not a:
-                continue
+                # alt 구조일 때 링크 셀렉터가 다를 수 있어 보조
+                a = it.select_one("a")  # 마지막 보조
+                if not a:
+                    continue
 
-            title = a.get("title", "")
+            title = a.get("title", "") or a.get_text(" ", strip=True)
             link = a.get("href", "")
 
-            # ✅ 네이버 링크 도메인 차단(안전망)
             host = urlparse(link).netloc.lower() if link else ""
             if _is_aggregator_host(host):
+                _dprint(cfg, f"  [NAVER] drop aggregator host={host} title={title[:60]}")
                 continue
 
             summary_tag = it.select_one("div.news_dsc")
             summary = summary_tag.get_text(" ", strip=True) if summary_tag else ""
 
-            if should_exclude_article(title, summary):
+            ex, reason = should_exclude_article(title, summary, return_reason=True)
+            if ex:
+                _dprint(cfg, f"  [NAVER] drop reason={reason} title={title[:60]}")
                 continue
 
             press = it.select_one("a.info.press")
             source = press.get_text(strip=True) if press else source_name
-
-            # ✅ (추가) 네이버도 source 기준 재배포 차단(혹시 모를 변형)
             if _is_aggregator_source(source):
+                _dprint(cfg, f"  [NAVER] drop aggregator source={source} title={title[:60]}")
                 continue
 
-            # ✅ 핵심: 네이버 '상대시간/절대날짜'를 published로 환산
             time_text = _extract_naver_time_text(it)
             published = _parse_naver_time_text_to_published(time_text, anchor, tz)
             if published is None:
-                # 파싱 실패 시 fallback (기존 동작 유지)
                 published = _safe_now(tz)
+
+            _dprint(cfg, f"  [NAVER] keep title={title[:50]} time_text='{time_text}' published={published.isoformat()}")
 
             articles.append(
                 Article(
@@ -540,6 +594,12 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8, cfg=None):
                 )
             )
 
+        # 디버깅 시 “첫 페이지만” 보고 싶으면 config.yaml에 debug_one_page: true 넣기
+        if cfg and cfg.get("debug_one_page", False):
+            _dprint(cfg, "[NAVER] debug_one_page enabled -> stop after first page")
+            break
+
+    _dprint(cfg, f"[NAVER] total kept={len(articles)} for keyword='{keyword}'")
     return articles
 
 
@@ -560,7 +620,7 @@ def fetch_all_articles(cfg):
                 all_articles += fetch_from_naver_news(kw, src["name"], tz, naver_pages, cfg=cfg)
             else:
                 q = f"{kw} site:{src['host']}" if src.get("host") else kw
-                all_articles += fetch_from_google_news(q, src["name"], tz)
+                all_articles += fetch_from_google_news(q, src["name"], tz, cfg=cfg)
 
     return all_articles
 
