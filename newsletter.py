@@ -252,10 +252,10 @@ def _brief_sim(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 
-def dedupe_for_brief(articles, threshold: float = 0.60, max_keep: int = 10):
+def dedupe_for_brief(articles, threshold: float = 0.50, max_keep: int = 10):
     """
     ✅ 브리핑(상단 AI 요약) 전용 중복 제거
-    - "주제 같으면 제거" 목적이라 threshold를 0.60로 낮춤 (요청 반영)
+    - "주제 같으면 제거" 목적이라 threshold를 0.50로 낮춤 (요청 반영)
     - summary가 있으면 summary로 비교, 없으면 title로 비교
     """
     kept = []
@@ -302,7 +302,7 @@ def select_articles_for_brief(
     """
     - 광고/단순 이미지로 summary가 빈 값인 기사는 제외
     - 카테고리별로 1~2개씩 분산 선택(맨 위 편향 완화)
-    - 브리핑 전용 dedupe(주제 중복 제거): threshold=0.60 적용
+    - 브리핑 전용 dedupe(주제 중복 제거): threshold=0.50 적용
     """
     pools = [
         ("ACUVUE", [a for a in (acuvue_articles or []) if _has_summary(a)]),
@@ -335,8 +335,8 @@ def select_articles_for_brief(
         seen.add(key)
         deduped.append(a)
 
-    # ✅ 3) 브리핑 전용 "주제 중복" 제거 (요청: 0.60)
-    deduped = dedupe_for_brief(deduped, threshold=0.60, max_keep=max_items)
+    # ✅ 3) 브리핑 전용 "주제 중복" 제거 (요청: 0.50)
+    deduped = dedupe_for_brief(deduped, threshold=0.50, max_keep=max_items)
 
     return deduped[:max_items]
 
@@ -386,8 +386,8 @@ def main():
     # 6) 최종 안전 필터
     articles = [a for a in articles if not should_exclude_article(a.title, a.summary)]
 
-    # ✅ 7) 기사 리스트용 중복 묶기(기존 유지: 0.60)
-    articles = dedupe_and_group_articles(articles, threshold=0.60)
+    # ✅ 7) 기사 리스트용 중복 묶기(기존 유지: 0.50)
+    articles = dedupe_and_group_articles(articles, threshold=0.50)
 
     # 8) 분류
     categorized = categorize_articles(articles)
@@ -401,7 +401,7 @@ def main():
         categorized.eye_health,
     )
 
-    # ✅ 10) 상단 브리핑(브리핑 전용 dedupe=0.60 적용된 picked로 요약)
+    # ✅ 10) 상단 브리핑(브리핑 전용 dedupe=0.50 적용된 picked로 요약)
     summary = build_yesterday_ai_brief(
         acuvue_list,
         company_list,
