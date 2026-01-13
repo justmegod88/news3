@@ -149,11 +149,27 @@ PRESS_DOMAIN_MAP_BASE = {
     "opticnews.co.kr.": "옵틱뉴스",  # 혹시 이상치 대비
 
     # (업계지/관련 매체 - 도메인은 네가 확인해서 수정/추가)
-    # 아래는 “틀릴 수 있어” 영역이라, 네가 실제 도메인 보고 바꾸면 됨
-    "fneyefocus.co.kr": "FN 아이포커스",
-    "koptic.co.kr": "한국안경신문",
-    "opticaljournal.co.kr": "옵티컬저널",
-    "eyecarenews.co.kr": "아이케어뉴스",
+   "eyecarenews.co.kr": "아이케어뉴스",
+   "opticnews.co.kr": "한국안경신문",
+   "dailyeye.co.kr": "데일리아이",   
+   "fneyefocus.com": "FN아이포커스",   
+   "opticweekly.com": "옵틱위클리",    
+   "health.chosun.com": "헬스조선",     
+   "newsis.com": "뉴시스",     
+   "bosa.co.kr": "보건뉴스",  
+   "newspim.com": "뉴스핌",  
+   "medisobizanews.com": "메디소비자뉴스",     
+   "mdtoday.co.kr": "메디컬투데이",    
+   "pinpointnews.co.kr": "핀포인트뉴스",       
+   "newstown.co.kr": "뉴스타운",   
+   "legaltimes.co.kr": "리걸타임즈", 
+   "opticallife.co.kr": "안경원라이프", 
+   "smarttoday.co.kr": "스마트투데이", 
+   "sisunnews.co.kr": "시선 뉴스",   
+
+
+
+
 }
 
 # =========================
