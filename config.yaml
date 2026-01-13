@@ -1,8 +1,12 @@
 timezone: Asia/Seoul
 
-#newsletter_publish_hour: 9
+
+naver_client_id: "네이버API_클라이언트ID"
+naver_client_secret: "네이버API_클라이언트시크릿"
 
 debug: true
+debug_one_page: true
+naver_api_display: 100
 
 # 네이버 뉴스 검색 페이지 수 (1페이지 ≈ 10개)
 naver_pages: 8
