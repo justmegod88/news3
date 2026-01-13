@@ -486,7 +486,7 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8, cfg=None):
                 continue
 
             press = it.select_one("a.info.press")
-            source = press.get_text(strip=True) if press else source_name
+            source = press.get_text(strip=True) if press else "네이버뉴스"
 
             if _is_aggregator_source(source):
                 continue
