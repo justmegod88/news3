@@ -173,7 +173,7 @@ def dedupe_and_group_articles(articles, threshold: float = 0.78):
             ex_title = getattr(ex, "title", "") or ""
             ex_summary = getattr(ex, "summary", "") or ""
 
-        if base_summary and ex_summary:
+            if base_summary and ex_summary:
                 sim = _similarity(base_summary, ex_summary)
             else:
                 sim = _similarity(base_title, ex_title)
