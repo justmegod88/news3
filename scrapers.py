@@ -510,6 +510,135 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8, cfg=None):
     return articles
 
 
+
+# =========================
+# ✅ NAVER News OpenAPI (NEW)
+# =========================
+NAVER_OPENAPI_URL = "https://openapi.naver.com/v1/search/news.json"
+
+
+def _parse_naver_openapi_pubdate(pubdate: str, tz) -> Optional[dt.datetime]:
+    """
+    Naver OpenAPI pubDate 예:
+    'Mon, 13 Jan 2026 09:21:00 +0900'
+    → 절대 시간. tz로 변환해 그대로 사용.
+    """
+    if not pubdate:
+        return None
+    try:
+        d = dt.datetime.strptime(pubdate, "%a, %d %b %Y %H:%M:%S %z")
+        return d.astimezone(tz)
+    except Exception:
+        # dateutil이 이미 import 되어 있으니 fallback
+        try:
+            d = date_parser.parse(pubdate)
+            if d.tzinfo is None:
+                d = d.replace(tzinfo=tz)
+            return d.astimezone(tz)
+        except Exception:
+            return None
+
+
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _strip_html_tags(s: str) -> str:
+    s = s or ""
+    s = html.unescape(s)
+    return _TAG_RE.sub("", s).strip()
+
+
+def fetch_from_naver_openapi(keyword: str, source_name: str, tz, pages: int = 10, cfg=None) -> List[Article]:
+    """
+    ✅ 네이버 OpenAPI 기반 뉴스 수집 (HTML 스크래핑 대신)
+    - cfg에서 naver_client_id / naver_client_secret 필요
+    - cfg['naver_api_display'] (기본 100) 단위로 페이지를 돌며 최대 1000건까지 조회
+    - pubDate는 절대시간이므로 그대로 사용
+    """
+    if cfg is None:
+        raise ValueError("cfg is required for Naver OpenAPI (needs client id/secret)")
+
+    client_id = (cfg.get("naver_client_id") or "").strip()
+    client_secret = (cfg.get("naver_client_secret") or "").strip()
+    if not client_id or not client_secret:
+        raise ValueError("Missing naver_client_id / naver_client_secret in config.yaml")
+
+    display = int(cfg.get("naver_api_display", 100))
+    if display <= 0 or display > 100:
+        display = 100
+
+    # OpenAPI start는 1~1000 범위
+    max_pages = int(pages) if pages else 10
+    if max_pages < 1:
+        max_pages = 1
+
+    headers = {
+        "X-Naver-Client-Id": client_id,
+        "X-Naver-Client-Secret": client_secret,
+    }
+
+    articles: List[Article] = []
+
+    for i in range(max_pages):
+        start = 1 + i * display
+        if start > 1000:
+            break
+
+        params = {
+            "query": keyword,
+            "display": display,
+            "start": start,
+            "sort": "date",  # 최신순
+        }
+
+        r = requests.get(NAVER_OPENAPI_URL, headers=headers, params=params, timeout=10)
+
+        if cfg.get("debug"):
+            print(f"[NAVER OPENAPI] kw='{keyword}' start={start} status={r.status_code}")
+
+        if r.status_code != 200:
+            # 키 제한/인증 실패/일시 오류 등
+            if cfg.get("debug"):
+                print("[NAVER OPENAPI] ERROR:", r.text[:200])
+            break
+
+        data = r.json()
+        items = data.get("items", []) or []
+        if not items:
+            break
+
+        for it in items:
+            title = _strip_html_tags(it.get("title", ""))
+            desc = _strip_html_tags(it.get("description", ""))
+
+            # link: 네이버 뉴스 링크가 들어오는 경우가 많고,
+            # originallink: 원문 링크가 있는 경우가 많음 (있으면 우선)
+            link = (it.get("originallink") or it.get("link") or "").strip()
+            if not link:
+                continue
+
+            published = _parse_naver_openapi_pubdate(it.get("pubDate", ""), tz)
+            if not published:
+                continue
+
+            # source_name은 기존 파이프라인과 호환을 위해 유지 (원문 도메인은 link로 확인 가능)
+            articles.append(
+                Article(
+                    title=title,
+                    link=link,
+                    published=published,
+                    source=source_name,
+                    summary=desc,
+                    image_url=None,
+                    is_naver=True,
+                )
+            )
+
+        # 디버그 모드에서 한 페이지만 확인 옵션
+        if cfg.get("debug_one_page"):
+            break
+
+    return articles
 # =========================
 # Orchestration
 # =========================
@@ -524,7 +653,17 @@ def fetch_all_articles(cfg):
     for src in sources:
         for kw in keywords:
             if src["name"] == "NaverNews":
-                all_articles += fetch_from_naver_news(kw, src["name"], tz, naver_pages, cfg=cfg)
+                # ✅ 1) OpenAPI 우선 (키/시크릿이 있으면)
+                try:
+                    if (cfg.get("naver_client_id") and cfg.get("naver_client_secret")):
+                        all_articles += fetch_from_naver_openapi(kw, src["name"], tz, naver_pages, cfg=cfg)
+                    else:
+                        all_articles += fetch_from_naver_news(kw, src["name"], tz, naver_pages, cfg=cfg)
+                except Exception as e:
+                    # OpenAPI 실패 시 기존 HTML 방식으로 fallback
+                    if cfg.get("debug"):
+                        print("[NAVER OPENAPI] fallback due to:", repr(e))
+                    all_articles += fetch_from_naver_news(kw, src["name"], tz, naver_pages, cfg=cfg)
             else:
                 q = f"{kw} site:{src['host']}" if src.get("host") else kw
                 all_articles += fetch_from_google_news(q, src["name"], tz)
