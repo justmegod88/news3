@@ -107,6 +107,11 @@ AD_SNIPPET_HINTS = [
     "논란", "깜짝", "지금 다운로드", "지금 클릭", "지금 확인",
 ]
 
+# 기타 문구 (그외 삭제하고 싶은 워딩)
+ETC_HINTS = [
+    "테슬라","자동차".
+]
+
 # 광학/렌즈 업계 화이트리스트
 INDUSTRY_WHITELIST = [
     "안경", "안경원", "안경사", "호야", "에실로", "자이스", "노안 렌즈", "노안 교정",
@@ -236,6 +241,12 @@ def should_exclude_article(title: str, summary: str = "", is_naver: bool = False
     if summary:
         if any(h in summary for h in AD_SNIPPET_HINTS):
             return True
+
+   # 기타 문구 (그외 삭제하고 싶은 워딩)
+    if summary:
+        if any(h in summary for h in ETC_HINTS):
+            return True
+
 
     # ✅ 7) 요약이 너무 짧은 카드형 문구 제거
     # ✅ 네이버 기사(is_naver=True)에는 적용하지 않음 (기존 유지)
