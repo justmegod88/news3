@@ -39,9 +39,9 @@ class Article:
 # =========================
 FINANCE_KEYWORDS = [
     "주가", "주식", "증시", "투자", "재무", "실적",
-    "매출", "영업이익", "순이익", "배당","부동산",
+  # "매출", "영업이익", "순이익", "배당","부동산",
     "상장", "ipo", "공모", "증권", "리포트","선물",
-    "목표주가", "시가총액", "ir", "주주","오렌지",
+    "목표주가", "시가총액", "ir", "주주",
 ]
 
 # ✅ 약업(야쿠프/약업신문) 도메인: 날짜 오류(과거 기사 유입) 방지용
@@ -96,7 +96,7 @@ DAVICHI_SINGER_HINTS = [
 # 얼굴/뷰티 노안
 FACE_AGING_HINTS = [
     "얼굴", "피부", "주름", "리프팅", "안티에이징",
-    "동안", "보톡스", "필러", "시술", "화장품", "뷰티","카메라","나이", "젊은데","패션","무신사","K패션",
+    "동안", "보톡스", "필러", "시술", "화장품", "뷰티","카메라","나이", "젊은데","패션",
 ]
 
 # 포털 광고/ 낚시형 요약 문구
@@ -116,6 +116,12 @@ INDUSTRY_WHITELIST = [
     "쿠퍼", "렌즈미", "안경진정성", "렌즈 용액","렌즈워시액",
 ]
 
+# ✅ (추가) 무신사/K패션 같은 "패션 잡음" 차단용
+# - 단, INDUSTRY_WHITELIST가 있으면 살림(네가 원한 동작)
+FASHION_HINTS = [
+    "무신사", "k패션", "패션", "의류", "룩북", "컬렉션", "오프화이트", "오프화이트",
+    "스타일", "코디", "브랜드", "쇼핑", "온라인몰", "패션플랫폼", "편집숍"
+]
 
 # =========================
 # Utils
@@ -159,6 +165,14 @@ def _is_aggregator_source(source: str) -> bool:
 def should_exclude_article(title: str, summary: str = "") -> bool:
     full = _normalize(title + " " + summary)
 
+    # ✅ (추가) 무신사/K패션 잡음 제거
+    # - 화이트리스트(콘택트렌즈 등) 있으면 살림
+    if any(h in full for h in FASHION_HINTS):
+        if not _has_industry_whitelist(full):
+            return True
+    
+    
+    
     # 1) 투자 / 재무
     if any(k in full for k in FINANCE_KEYWORDS):
         if not any(i in full for i in INDUSTRY_WHITELIST):
