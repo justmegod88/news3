@@ -205,7 +205,7 @@ def _prompt_compress_long_summary(title: str, summary: str) -> str:
 - 안경테/렌즈/제품의 브랜드명은 [요약문]에 명확히 언급된 경우에만 사용
 - 브랜드가 불명확하면 특정 주체를 단정하지 말 것
 - 기사에 없는 단어 절대 사용 금지
-- 2~3문장, 220자 이내
+- 2~3문장, 195자 이내
 
 [제목]
 {title}
@@ -262,7 +262,7 @@ def _prompt_summarize_from_body(title: str, body_text: str) -> str:
 - 안경테/렌즈/제품의 브랜드명은 본문에 명확히 언급된 경우에만 사용
 - 브랜드가 불명확하면 특정 주체를 단정하지 말 것
 - 기사에 없는 단어 절대 사용 금지
-- 2~3문장, 220자 이내
+- 2~3문장, 195자 이내
 - 가능한 한 팩트(무엇/누가/무슨 내용/어떤 조치)를 중심으로
 
 [제목]
@@ -287,12 +287,12 @@ def refine_article_summaries(articles: List) -> None:
     3) summary가 아예 없음(또는 의미없는 수준) -> 본문 확인
        3-1) 이미지만 있는 광고 -> summary는 "빈값"
        3-2) 본문 텍스트(+이미지) -> OpenAI로 2~3문장 요약
-    공통: 최종 summary는 220자 내
+    공통: 최종 summary는 195자 내
     """
     client = _get_client()
 
     LONG_SUMMARY_THRESHOLD = 260
-    MAX_SUMMARY_CHARS = 200
+    MAX_SUMMARY_CHARS = 195
 
     for a in articles:
         title = _norm_text(getattr(a, "title", "") or "")
@@ -340,7 +340,7 @@ def refine_article_summaries(articles: List) -> None:
             else:
                 summary = _norm_text(body_text)[:MAX_SUMMARY_CHARS].rstrip()
 
-            # ✅ NEW: 최종 2~3문장 + 220자 강제
+            # ✅ NEW: 최종 2~3문장 + 195자 강제
             summary = _enforce_2to3_sentences(summary, max_sentences=3, max_chars=MAX_SUMMARY_CHARS)
 
             try:
@@ -354,7 +354,7 @@ def refine_article_summaries(articles: List) -> None:
             if client is not None:
                 try:
                     prompt = _prompt_title_only(title)
-                    summary = _call_openai_2to3_sentences(client, prompt, max_chars=200)
+                    summary = _call_openai_2to3_sentences(client, prompt, max_chars=195)
                 except Exception:
                     summary = title
             else:
@@ -363,7 +363,7 @@ def refine_article_summaries(articles: List) -> None:
             if len(summary) > MAX_SUMMARY_CHARS:
                 summary = summary[:MAX_SUMMARY_CHARS].rstrip() + "…"
 
-            # ✅ NEW: 최종 2~3문장 + 220자 강제
+            # ✅ NEW: 최종 2~3문장 + 195자 강제
             summary = _enforce_2to3_sentences(summary, max_sentences=3, max_chars=MAX_SUMMARY_CHARS)
 
             try:
