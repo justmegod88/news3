@@ -81,10 +81,6 @@ news_sources:
     host: health.chosun.com
   - name: 뉴시스
     host: newsis.com
-  - name: 보건뉴스
-    host: bosa.co.kr
-  - name: 뉴스핌
-    host: newspim.com
   - name: 안경원라이프
     host: opticallife.co.kr
 
