@@ -364,30 +364,33 @@ def _normalize_title(title: str) -> str:
     return t
 
 
-def deduplicate_articles(articles: List[Article]) -> List[Article]:
-    seen_urls = set()
-    seen_titles = set()
-    out = []
-
-    for a in articles:
-        a.link = resolve_final_url(a.link)
-
-        u = _normalize_url(a.link)
-        t = _normalize_title(a.title)
-
-        if u and u in seen_urls:
-            continue
-        if t and t in seen_titles:
-            continue
-
-        if u:
-            seen_urls.add(u)
-        if t:
-            seen_titles.add(t)
-
-        out.append(a)
-
-    return out
+import difflib
+def refine_article_summaries(
+   articles,
+   summary_similarity: float = 0.78
+):
+   seen_summaries = []
+   out = []
+   for a in articles:
+       summary = a.summary.strip()
+       # 문장 수 제한 (2~3문장)
+       sentences = re.split(r'(?<=[.!?])\s+', summary)
+       summary = " ".join(sentences[:3])
+       # 요약 중복 제거
+       duplicated = False
+       for prev in seen_summaries:
+           ratio = difflib.SequenceMatcher(
+               None, summary, prev
+           ).ratio()
+           if ratio >= summary_similarity:
+               duplicated = True
+               break
+       if duplicated:
+           continue
+       a.summary = summary
+       seen_summaries.append(summary)
+       out.append(a)
+   return out
 
 
 # =========================
