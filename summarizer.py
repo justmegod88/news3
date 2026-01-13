@@ -326,3 +326,21 @@ def refine_article_summaries(articles: List) -> None:
             summary = summary[:MAX_SUMMARY_CHARS].rstrip() + "…"
 
         a.summary = summary
+
+def summarize_overall(articles: List) -> str:
+    if not articles:
+        return "어제 기준으로 수집된 관련 기사가 없어 별도 공유 사항은 없습니다."
+
+    items = []
+    for a in articles[:3]:
+        t = (getattr(a, "title", "") or "").strip()
+        s = (getattr(a, "summary", "") or "").strip()
+
+        if s:
+            s = re.sub(r"\s+", " ", s)
+            s = s[:120].rstrip() + ("…" if len(s) > 120 else "")
+            items.append(f"- {t}: {s}")
+        else:
+            items.append(f"- {t}")
+
+    return "어제 주요 이슈:\n" + "\n".join(items)
