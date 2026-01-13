@@ -47,6 +47,7 @@ keywords:
   - 하파크리스틴
   - 존슨앤드존슨비젼
   - 안경원
+  - 존슨앤드존슨 비젼젼
 
   # 영문 병행
   - soft contact lens
@@ -72,8 +73,6 @@ news_sources:
     host: opticweekly.com
   - name: 헬스조선
     host: health.chosun.com
-  - name: 뉴시스
-    host: newsis.com
   - name: 안경원라이프
     host: opticallife.co.kr
 
