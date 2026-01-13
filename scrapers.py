@@ -150,7 +150,7 @@ PRESS_DOMAIN_MAP_BASE = {
 
     # (업계지/관련 매체 - 도메인은 네가 확인해서 수정/추가)
     # 아래는 “틀릴 수 있어” 영역이라, 네가 실제 도메인 보고 바꾸면 됨
-    "fifocus.co.kr": "F&I 포커스",
+    "fneyefocus.co.kr": "FN 아이포커스",
     "koptic.co.kr": "한국안경신문",
     "opticaljournal.co.kr": "옵티컬저널",
     "eyecarenews.co.kr": "아이케어뉴스",
