@@ -2,7 +2,7 @@ timezone: Asia/Seoul
 
 
 naver_client_id: "KVKGGH22XnRg3JZibEyb"
-naver_client_secret: "네이버API_클라이언트시크릿"
+naver_client_secret: "qYwgMgGm3R"
 
 debug: true
 debug_one_page: true
