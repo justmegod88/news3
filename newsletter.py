@@ -232,7 +232,7 @@ def remove_cross_category_duplicates(*category_lists):
 
 
 # =========================
-# ✅ (E) 브리핑(상단 요약) 전용 중복 제거: threshold=0.65 (요청 반영)
+# ✅ (E) 브리핑(상단 요약) 전용 중복 제거: threshold=0.60 (요청 반영)
 # =========================
 def _brief_norm(s: str) -> str:
     s = (s or "").lower().strip()
