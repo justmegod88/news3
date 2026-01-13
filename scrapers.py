@@ -109,7 +109,7 @@ AD_SNIPPET_HINTS = [
 
 # 기타 문구 (그외 삭제하고 싶은 워딩)
 ETC_HINTS = [
-    "테슬라","자동차",
+    "테슬라", "자동차",
 ]
 
 # 광학/렌즈 업계 화이트리스트
@@ -130,6 +130,31 @@ FASHION_HINTS = [
     "스타일", "코디", "브랜드", "쇼핑", "온라인몰", "패션플랫폼", "편집숍"
 ]
 
+
+# =========================
+# ✅ Press mapping (사용자가 계속 추가)
+# =========================
+NAVER_FALLBACK_SOURCE = "네이버뉴스"
+
+# ✅ "내가 아는 데이터 기준" 초기 매핑 (네가 나중에 계속 추가하면 됨)
+# - key는 도메인(가능하면 www 제거한 값)
+# - value는 메일에 보여줄 "언론사/업계지명"
+PRESS_DOMAIN_MAP_BASE = {
+    # (스크린샷/대화에서 실제로 나온 것들)
+    "seoul.co.kr": "서울신문",
+    "medisobizanews.com": "메디소비자뉴스",
+    "livesnews.com": "라이브스뉴스",
+    "newsmp.com": "뉴스메이커",      # 실제 명칭이 다르면 네가 수정
+    "opticnews.co.kr": "옵틱뉴스",
+    "opticnews.co.kr.": "옵틱뉴스",  # 혹시 이상치 대비
+
+    # (업계지/관련 매체 - 도메인은 네가 확인해서 수정/추가)
+    # 아래는 “틀릴 수 있어” 영역이라, 네가 실제 도메인 보고 바꾸면 됨
+    "fifocus.co.kr": "F&I 포커스",
+    "koptic.co.kr": "한국안경신문",
+    "opticaljournal.co.kr": "옵티컬저널",
+    "eyecarenews.co.kr": "아이케어뉴스",
+}
 
 # =========================
 # Utils
@@ -174,32 +199,48 @@ def _is_aggregator_source(source: str) -> bool:
 
 def _build_press_host_map(cfg) -> dict:
     """
-    config.yaml의 news_sources에서 host->name 매핑 생성
-    예: {"chosun.com": "조선일보", "hankyung.com": "한국경제", ...}
+    ✅ 최종 매핑 = (기본 매핑 + config.yaml의 news_sources 매핑)
+    - config.yaml에 추가하면 여기에도 자동 반영됨
     """
-    m = {}
+    m = dict(PRESS_DOMAIN_MAP_BASE)
+
     for src in (cfg.get("news_sources") or []):
         name = (src.get("name") or "").strip()
         host = (src.get("host") or "").strip()
         if not name or not host:
             continue
         m[_strip_www(host)] = name
+
     return m
 
 
 def _source_from_url(url: str, press_map: dict, fallback: str = "") -> str:
     """
-    URL 도메인 기반으로 source(언론사)를 결정.
-    1) cfg news_sources host와 매칭되면 name 반환
-    2) 아니면 도메인 자체 반환 (예: hankyung.com)
-    3) URL이 없으면 fallback
+    ✅ URL 도메인 기반으로 source(언론사)를 결정.
+    1) press_map에 있으면 언론사명
+    2) 없으면 fallback 반환 (요청: 네이버는 네이버뉴스로)
     """
     if not url:
         return fallback or ""
     host = _strip_www(urlparse(url).netloc)
     if not host:
         return fallback or ""
-    return press_map.get(host, host)
+    return press_map.get(host, fallback or "")
+
+
+def _looks_like_domain(s: str) -> bool:
+    """
+    'seoul.co.kr' 같은 도메인 형태면 True
+    (구글 RSS에서 source가 도메인으로 찍히는 경우 보정)
+    """
+    if not s:
+        return False
+    ss = s.strip().lower()
+    # 공백이 있으면 보통 언론사명
+    if " " in ss:
+        return False
+    # 점이 1개 이상 있고 글자/숫자/하이픈 조합이면 도메인 가능성 ↑
+    return bool(re.fullmatch(r"[a-z0-9\-\.]+\.[a-z]{2,}", ss))
 
 
 # ✅ 핵심 변경: is_naver 파라미터 추가
@@ -207,20 +248,20 @@ def should_exclude_article(title: str, summary: str = "", is_naver: bool = False
     full = _normalize(title + " " + summary)
 
     # ✅ (추가) 무신사/K패션 잡음 제거
-    # - 화이트리스트(콘택트렌즈 등) 있으면 살림 (기존 유지)
+    # - 화이트리스트(콘택트렌즈 등) 있으면 살림
     if any(h in full for h in FASHION_HINTS):
         if not _has_industry_whitelist(full):
             return True
 
-    # ✅ 1) 투자/재무: 화이트리스트 있어도 무조건 제거 (요청 반영)
+    # ✅ 1) 투자/재무: 화이트리스트 있어도 무조건 제거
     if any(k in full for k in FINANCE_KEYWORDS):
         return True
 
-    # ✅ 2) 얼굴/뷰티 노안: 화이트리스트 있어도 무조건 제거 (요청 반영)
+    # ✅ 2) 얼굴/뷰티 노안: 화이트리스트 있어도 무조건 제거
     if "노안" in full and any(k in full for k in FACE_AGING_HINTS):
         return True
 
-    # 3) 가수 다비치 (기존 유지: 화이트리스트 있으면 살림)
+    # 3) 가수 다비치 (화이트리스트 있으면 살림)
     if any(n in full for n in DAVICHI_SINGER_NAMES):
         return True
     if "다비치" in full or "davichi" in full:
@@ -228,28 +269,27 @@ def should_exclude_article(title: str, summary: str = "", is_naver: bool = False
             if not _has_industry_whitelist(full):
                 return True
 
-    # ✅ 4) 연예/예능/오락: 화이트리스트 있어도 무조건 제거 (요청 반영)
+    # ✅ 4) 연예/예능/오락: 화이트리스트 있어도 무조건 제거
     if any(h in full for h in ENTERTAINMENT_HINTS):
         return True
 
-    # 5) 타 업계 인사 / 승진 (기존 유지: 화이트리스트 있으면 살림)
+    # 5) 타 업계 인사 / 승진 (화이트리스트 있으면 살림)
     if any(h in full for h in PERSONNEL_HINTS):
         if not _has_industry_whitelist(full):
             return True
 
-    # ✅ 6) 포털 광고/낚시형 요약: 화이트리스트 있어도 무조건 제거 (요청 반영)
+    # ✅ 6) 포털 광고/낚시형 요약: 무조건 제거
     if summary:
         if any(h in summary for h in AD_SNIPPET_HINTS):
             return True
 
-   # 기타 문구 (그외 삭제하고 싶은 워딩)
+    # 기타 문구
     if summary:
         if any(h in summary for h in ETC_HINTS):
             return True
 
-
     # ✅ 7) 요약이 너무 짧은 카드형 문구 제거
-    # ✅ 네이버 기사(is_naver=True)에는 적용하지 않음 (기존 유지)
+    # ✅ 네이버 기사(is_naver=True)에는 적용하지 않음
     if (not is_naver) and summary and len(summary) < 40:
         if not _has_industry_whitelist(full):
             return True
@@ -441,9 +481,11 @@ def deduplicate_articles(articles: List[Article]) -> List[Article]:
 # =========================
 # Google News
 # =========================
-def fetch_from_google_news(query, source_name, tz):
+def fetch_from_google_news(query, source_name, tz, cfg=None):
     feed = feedparser.parse(build_google_news_url(query))
     articles = []
+
+    press_map = _build_press_host_map(cfg or {})
 
     for e in getattr(feed, "entries", []):
         try:
@@ -463,14 +505,21 @@ def fetch_from_google_news(query, source_name, tz):
             else:
                 published = _safe_now(tz)
 
-            source = (
+            raw_source = (
                 getattr(getattr(e, "source", None), "title", "")
                 or press2
                 or source_name
             )
 
-            if _is_aggregator_source(source):
+            if _is_aggregator_source(raw_source):
                 continue
+
+            # ✅ source가 도메인처럼 보이면 매핑으로 "언론사명" 변환 (없으면 기존 유지)
+            source = raw_source
+            if _looks_like_domain(raw_source):
+                mapped = press_map.get(_strip_www(raw_source), "")
+                if mapped:
+                    source = mapped
 
             if should_exclude_article(title, summary, is_naver=False):
                 continue
@@ -533,8 +582,8 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8, cfg=None):
             if press:
                 source = press.get_text(strip=True)
             else:
-                # press 태그가 없으면 링크 도메인으로라도 "실제 언론사/도메인" 표기
-                source = _source_from_url(link, press_map, fallback=source_name)
+                # ✅ 매핑 없으면 "네이버뉴스"로 표시 (요청 반영)
+                source = _source_from_url(link, press_map, fallback=NAVER_FALLBACK_SOURCE)
 
             if _is_aggregator_source(source):
                 continue
@@ -590,11 +639,6 @@ def _strip_html_tags(s: str) -> str:
 
 
 def fetch_from_naver_openapi(keyword: str, source_name: str, tz, pages: int = 10, cfg=None) -> List[Article]:
-    """
-    ✅ 네이버 OpenAPI 기반 뉴스 수집
-    - pubDate는 절대시간이므로 그대로 사용
-    - ✅ source는 "네이버뉴스"가 아니라 원문 도메인/매핑된 언론사명으로 설정 (요청 반영)
-    """
     if cfg is None:
         raise ValueError("cfg is required for Naver OpenAPI (needs client id/secret)")
 
@@ -629,7 +673,7 @@ def fetch_from_naver_openapi(keyword: str, source_name: str, tz, pages: int = 10
             "query": keyword,
             "display": display,
             "start": start,
-            "sort": "date",  # 최신순
+            "sort": "date",
         }
 
         r = requests.get(NAVER_OPENAPI_URL, headers=headers, params=params, timeout=10)
@@ -660,11 +704,8 @@ def fetch_from_naver_openapi(keyword: str, source_name: str, tz, pages: int = 10
             if not published:
                 continue
 
-            # ✅ 여기서 "진짜 언론사"로 source 설정
-            # 1) originallink 우선
-            # 2) cfg news_sources host와 매핑되면 언론사 name
-            # 3) 아니면 도메인 자체
-            source = _source_from_url(origin or link, press_map, fallback=source_name)
+            # ✅ 매핑 없으면 "네이버뉴스"로 표시 (요청 반영)
+            source = _source_from_url(origin or link, press_map, fallback=NAVER_FALLBACK_SOURCE)
 
             if _is_aggregator_host(urlparse(link).netloc):
                 continue
@@ -706,7 +747,6 @@ def fetch_all_articles(cfg):
     for src in sources:
         for kw in keywords:
             if src["name"] == "NaverNews":
-                # ✅ OpenAPI 우선
                 try:
                     if (cfg.get("naver_client_id") and cfg.get("naver_client_secret")):
                         all_articles += fetch_from_naver_openapi(
@@ -718,13 +758,13 @@ def fetch_all_articles(cfg):
                         )
                 except Exception as e:
                     if cfg.get("debug"):
-                        print("[NAVER OPENAPI] fallback due to:", repr(e))
+                        print("[NAVER] fallback due to:", repr(e))
                     all_articles += fetch_from_naver_news(
                         kw, src["name"], tz, naver_pages, cfg=cfg
                     )
             else:
                 q = f"{kw} site:{src['host']}" if src.get("host") else kw
-                all_articles += fetch_from_google_news(q, src["name"], tz)
+                all_articles += fetch_from_google_news(q, src["name"], tz, cfg=cfg)
 
     return all_articles
 
@@ -736,7 +776,6 @@ def filter_yesterday_articles(articles, cfg):
 
 
 def filter_out_finance_articles(articles):
-    # ✅ is_naver 유지해서 재필터링 (기존 코멘트 반영)
     return [
         a for a in articles
         if not should_exclude_article(a.title, a.summary, is_naver=getattr(a, "is_naver", False))
