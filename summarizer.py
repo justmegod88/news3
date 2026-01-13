@@ -292,7 +292,7 @@ def refine_article_summaries(articles: List) -> None:
     client = _get_client()
 
     LONG_SUMMARY_THRESHOLD = 260
-    MAX_SUMMARY_CHARS = 220
+    MAX_SUMMARY_CHARS = 200
 
     for a in articles:
         title = _norm_text(getattr(a, "title", "") or "")
