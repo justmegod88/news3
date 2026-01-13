@@ -46,7 +46,6 @@ keywords:
   - 안경사
   - 안경광학과
   - 안경
-  - 라섹
   - 라식
   - 인터로조
   - 네오비젼
@@ -87,26 +86,9 @@ news_sources:
     host: bosa.co.kr
   - name: 뉴스핌
     host: newspim.com
-  - name: 메디소비자뉴스
-    host: medisobizanews.com
-  - name: 메디컬투데이
-    host: mdtoday.co.kr
-  - name: 핀포인트뉴스
-    host: pinpointnews.co.kr
-  - name: 뉴스타운
-    host: newstown.co.kr
-  - name: 리걸타임즈
-    host: legaltimes.co.kr
   - name: 안경원라이프
     host: opticallife.co.kr
-  - name: 스마트투데이
-    host: smarttoday.co.kr
-  - name: 시선 뉴스 
-    host: sisunnews.co.kr
-  - name: 헤드럴경제
-    host: heraldcorp.com
-  - name: 엠투데이
-    host: autodaily.co.kr
+
 
 
 
