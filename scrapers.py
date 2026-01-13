@@ -161,7 +161,8 @@ def should_exclude_article(title: str, summary: str = "") -> bool:
 
     # 1) 투자 / 재무
     if any(k in full for k in FINANCE_KEYWORDS):
-        return True
+        if not any(i in full for i in INDUSTRY_WHITELIST):
+            return True
 
     # 2) 얼굴/뷰티 노안
     if "노안" in full and any(k in full for k in FACE_AGING_HINTS):
