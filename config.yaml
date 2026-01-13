@@ -2,6 +2,8 @@ timezone: Asia/Seoul
 
 newsletter_publish_hour: 9
 
+debug: true
+
 # 네이버 뉴스 검색 페이지 수 (1페이지 ≈ 10개)
 naver_pages: 8
 
