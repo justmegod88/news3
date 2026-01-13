@@ -166,8 +166,12 @@ PRESS_DOMAIN_MAP_BASE = {
    "opticallife.co.kr": "안경원라이프", 
    "smarttoday.co.kr": "스마트투데이", 
    "sisunnews.co.kr": "시선 뉴스",   
-
-
+   "biz.heraldcorp.com" : "해럴드 경제",
+   "kyosu.net": "교슈신문",
+   "jeonmin.co.kr": "전민일보",
+   "livesnews.com": "라이브뉴스",
+   "domin.co.kr": "전북도민일보"
+    
 
 
 }
