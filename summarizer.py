@@ -288,6 +288,10 @@ def refine_article_summaries(articles: List) -> None:
        3-1) 이미지만 있는 광고 -> summary는 "빈값"
        3-2) 본문 텍스트(+이미지) -> OpenAI로 2~3문장 요약
     공통: 최종 summary는 105자 내
+
+    ✅ 추가(요청 반영):
+    - 네이버(OpenAPI/HTML 포함: a.is_naver=True)는 "길이와 상관없이" OpenAI 압축 요약을 한 번 더 적용
+      (구글 기사처럼 항상 AI 요약을 태우고, 최종 105자/2~3문장 강제)
     """
     client = _get_client()
 
@@ -299,6 +303,9 @@ def refine_article_summaries(articles: List) -> None:
         summary_raw = getattr(a, "summary", "") or ""
         summary = _norm_text(summary_raw)
         link = (getattr(a, "link", "") or "").strip()
+
+        # ✅ 네이버(OpenAPI 포함) 판별 플래그
+        is_naver = bool(getattr(a, "is_naver", False))
 
         # 링크가 이미지 파일이면: 광고/배너로 보고 summary는 빈값
         if _is_image_file_url(link):
@@ -383,6 +390,18 @@ def refine_article_summaries(articles: List) -> None:
             else:
                 summary = summary[:MAX_SUMMARY_CHARS].rstrip() + "…"
 
+        # ✅ 추가(요청 반영 핵심)
+        # - 네이버(OpenAPI 포함)는 길이와 상관없이 OpenAI로 "2~3문장 압축"을 한 번 더 적용
+        # - 구글 기사처럼 항상 AI 요약을 태우고 싶다는 요구사항 대응
+        if is_naver and client is not None:
+            try:
+                # summary가 이미 짧더라도 "문장형 2~3문장"으로 정리하기 위해 한 번 더 압축
+                prompt = _prompt_compress_long_summary(title, summary)
+                summary = _call_openai_2to3_sentences(client, prompt, max_chars=MAX_SUMMARY_CHARS)
+            except Exception:
+                # 실패 시 기존 summary 유지(로직 변경 최소화)
+                pass
+
         # 공통: 최종 컷
         if len(summary) > MAX_SUMMARY_CHARS:
             summary = summary[:MAX_SUMMARY_CHARS].rstrip() + "…"
@@ -394,6 +413,8 @@ def refine_article_summaries(articles: List) -> None:
             a.summary = summary
         except Exception:
             pass
+
+
 
 
 # =========================
