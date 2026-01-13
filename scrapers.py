@@ -169,9 +169,9 @@ PRESS_DOMAIN_MAP_BASE = {
    "kyosu.net": "교수신문",
    "jeonmin.co.kr": "전민일보",
    "livesnews.com": "라이브뉴스",
-   "domin.co.kr": "전북도민일보"
-   "cctimes.kr": "충청타임즈"
-   "stardailynews": "스타데일리"
+   "domin.co.kr": "전북도민일보",
+   "cctimes.kr": "충청타임즈",
+   "stardailynews": "스타데일리",
     
     
 
