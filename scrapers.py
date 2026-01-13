@@ -21,24 +21,6 @@ GOOGLE_NEWS_RSS_BASE = "https://news.google.com/rss/search"
 
 
 # =========================
-# ✅ Debug toggle
-# - config.yaml에 debug: true 넣으면 로그가 많이 찍힘
-# - 또는 환경변수 DEBUG=1 로 켤 수 있음
-# =========================
-import os
-def _debug_enabled(cfg=None) -> bool:
-    if os.getenv("DEBUG", "").strip() in ("1", "true", "True", "YES", "yes"):
-        return True
-    if cfg and isinstance(cfg, dict):
-        return bool(cfg.get("debug", False))
-    return False
-
-def _dprint(cfg, msg: str):
-    if _debug_enabled(cfg):
-        print(msg)
-
-
-# =========================
 # Data model
 # =========================
 @dataclass
@@ -53,7 +35,7 @@ class Article:
 
 
 # =========================
-# Exclusion rules  (✅ 여기 "단어" 그대로 유지)
+# Exclusion rules
 # =========================
 FINANCE_KEYWORDS = [
     "주가", "주식", "증시", "투자", "재무", "실적",
@@ -125,13 +107,13 @@ AD_SNIPPET_HINTS = [
 
 # 광학/렌즈 업계 화이트리스트
 INDUSTRY_WHITELIST = [
-    "안경", "안경원","안경사", "호야", "에실로", "노안 렌즈", "노안 교정",
+    "안경", "안경원","안경사", "호야", "에실로","자이스", "노안 렌즈", "노안 교정",
     "렌즈", "콘택트", "콘택트렌즈","오렌즈", "하피크리스틴",
     "안과", "검안", "시력","콘택트 렌즈", "contact lens",
     "아큐브", "acuvue",
     "존슨앤드존슨", "알콘", "쿠퍼비전", "바슈롬","쿠퍼 비젼",
-    "인터로조", 
-    "쿠퍼", "렌즈미",
+    "인터로조", "클라렌",
+    "쿠퍼", "렌즈미", "안경진정성", "렌즈 용액","렌즈워시액",
 ]
 
 # ✅ (추가) 무신사/K패션 같은 "패션 잡음" 차단용
@@ -149,16 +131,14 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "")).strip().lower()
 
 
+def _has_industry_whitelist(full_norm: str) -> bool:
+    return any(i in full_norm for i in INDUSTRY_WHITELIST)
+
+
 def _is_aggregator_host(host: str) -> bool:
-    """
-    ✅ 재배포/애그리게이터 도메인 차단용
-    - 정확히 일치 + 서브도메인까지 커버(endswith)
-    """
     h = (host or "").lower().strip()
     if not h:
         return False
-
-    # netloc에 포트가 붙는 케이스 제거
     if ":" in h:
         h = h.split(":", 1)[0]
 
@@ -170,72 +150,63 @@ def _is_aggregator_host(host: str) -> bool:
 
 
 def _is_aggregator_source(source: str) -> bool:
-    """
-    ✅ (추가) source(언론사명) 기반 차단
-    - 구글뉴스 RSS에서 link가 news.google.com으로 남는 케이스 방어
-    """
     s = (source or "").strip().lower()
     if not s:
         return False
-    # "MSN" / "msn" / "MSN Korea" 같은 변형도 커버
     return any(b in s for b in AGGREGATOR_BLOCK_SOURCES)
 
 
-# ✅ (추가) 너 코드에서 호출하는데 정의가 없어서 런타임 에러나는 함수
-def _has_industry_whitelist(full: str) -> bool:
-    return any(i in full for i in INDUSTRY_WHITELIST)
-
-
-# ✅ 디버깅을 위해 "왜 제외됐는지" reason을 리턴하는 버전도 제공 (기본 동작은 그대로 bool)
-def should_exclude_article(title: str, summary: str = "", return_reason: bool = False):
+# ✅ 핵심 변경: is_naver 파라미터 추가
+def should_exclude_article(title: str, summary: str = "", is_naver: bool = False) -> bool:
     full = _normalize(title + " " + summary)
 
     # ✅ (추가) 무신사/K패션 잡음 제거
     # - 화이트리스트(콘택트렌즈 등) 있으면 살림
     if any(h in full for h in FASHION_HINTS):
         if not _has_industry_whitelist(full):
-            return (True, "FASHION_HINTS") if return_reason else True
+            return True
 
     # 1) 투자 / 재무
     if any(k in full for k in FINANCE_KEYWORDS):
-        if not any(i in full for i in INDUSTRY_WHITELIST):
-            return (True, "FINANCE_KEYWORDS") if return_reason else True
+        if not _has_industry_whitelist(full):
+            return True
 
     # 2) 얼굴/뷰티 노안
     if "노안" in full and any(k in full for k in FACE_AGING_HINTS):
-        if not any(i in full for i in INDUSTRY_WHITELIST):
-            return (True, "FACE_AGING_HINTS + 노안") if return_reason else True
+        if not _has_industry_whitelist(full):
+            return True
 
     # 3) 가수 다비치
     if any(n in full for n in DAVICHI_SINGER_NAMES):
-        return (True, "DAVICHI_SINGER_NAMES") if return_reason else True
+        return True
     if "다비치" in full or "davichi" in full:
         if any(h in full for h in DAVICHI_SINGER_HINTS):
-            if not any(i in full for i in INDUSTRY_WHITELIST):
-                return (True, "DAVICHI_SINGER_HINTS") if return_reason else True
+            if not _has_industry_whitelist(full):
+                return True
 
     # 4) 연예 / 예능 / 오락
     if any(h in full for h in ENTERTAINMENT_HINTS):
-        if not any(i in full for i in INDUSTRY_WHITELIST):
-            return (True, "ENTERTAINMENT_HINTS") if return_reason else True
+        if not _has_industry_whitelist(full):
+            return True
 
     # 5) 타 업계 인사 / 승진
     if any(h in full for h in PERSONNEL_HINTS):
-        if not any(i in full for i in INDUSTRY_WHITELIST):
-            return (True, "PERSONNEL_HINTS") if return_reason else True
+        if not _has_industry_whitelist(full):
+            return True
 
     # 6) 포털 광고 / 카드형 요약 제거
     if summary:
         if any(h in summary for h in AD_SNIPPET_HINTS):
-            if not any(i in full for i in INDUSTRY_WHITELIST):
-                return (True, "AD_SNIPPET_HINTS") if return_reason else True
+            if not _has_industry_whitelist(full):
+                return True
 
-    # 7) 요약이 너무 짧은 카드형 문구 제거
-    if summary and len(summary) < 40:
-        if not any(i in full for i in INDUSTRY_WHITELIST):
-            return (True, "SHORT_SUMMARY(<40)") if return_reason else True
+    # ✅ 7) 요약이 너무 짧은 카드형 문구 제거
+    # ✅ 네이버 기사(is_naver=True)에는 적용하지 않음 (핵심)
+    if (not is_naver) and summary and len(summary) < 40:
+        if not _has_industry_whitelist(full):
+            return True
 
-    return (False, "") if return_reason else False
+    return False
 
 
 # =========================
@@ -262,11 +233,6 @@ def _safe_now(tz):
 # ✅ Newsletter publish anchor (NEW)
 # =========================
 def _get_newsletter_anchor(cfg, tz) -> dt.datetime:
-    """
-    뉴스레터 '발행 기준시간' anchor.
-    - config.yaml에 newsletter_publish_hour가 있으면 그 시각 기준으로 잡음 (0~23)
-    - 없으면 기존처럼 '현재 시각' 기준(= now)으로 동작
-    """
     now = _safe_now(tz)
     h = cfg.get("newsletter_publish_hour", None)
     try:
@@ -276,8 +242,6 @@ def _get_newsletter_anchor(cfg, tz) -> dt.datetime:
         if h < 0 or h > 23:
             return now
         anchor = now.replace(hour=h, minute=0, second=0, microsecond=0)
-        # 만약 지금이 아직 발행시각 이전이라면(예: 새벽에 돌았는데 publish_hour=9),
-        # anchor는 '오늘 9시'가 아니라 '어제 9시'가 되어야 어제 범위를 제대로 잡음
         if now < anchor:
             anchor = anchor - dt.timedelta(days=1)
         return anchor
@@ -330,12 +294,8 @@ def resolve_final_url(link: str) -> str:
 _NAVER_REL_RE = re.compile(r"^\s*(\d+)\s*(초|분|시간|일)\s*전\s*$")
 _NAVER_ABS_RE = re.compile(r"^\s*(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?\s*$")
 
+
 def _parse_naver_time_text_to_published(time_text: str, anchor: dt.datetime, tz) -> Optional[dt.datetime]:
-    """
-    네이버 검색 결과에 보이는 시간 문자열을 published(datetime)로 변환.
-    - "n시간 전" / "n일 전" / "n분 전" / "n초 전"
-    - "YYYY.MM.DD."
-    """
     if not time_text:
         return None
 
@@ -368,9 +328,6 @@ def _parse_naver_time_text_to_published(time_text: str, anchor: dt.datetime, tz)
 
 
 def _extract_naver_time_text(it) -> str:
-    """
-    네이버 검색 결과에서 '4시간 전 / 1일 전 / 2026.01.12.' 같은 텍스트를 뽑음.
-    """
     cand = it.select("span.info")
     for s in cand:
         txt = s.get_text(" ", strip=True)
@@ -434,13 +391,11 @@ def deduplicate_articles(articles: List[Article]) -> List[Article]:
 
 
 # =========================
-# Google News (✅ 기존 유지)
+# Google News
 # =========================
-def fetch_from_google_news(query, source_name, tz, cfg=None):
+def fetch_from_google_news(query, source_name, tz):
     feed = feedparser.parse(build_google_news_url(query))
     articles = []
-
-    _dprint(cfg, f"[GOOGLE] query='{query}' entries={len(getattr(feed, 'entries', []) or [])}")
 
     for e in getattr(feed, "entries", []):
         try:
@@ -452,7 +407,6 @@ def fetch_from_google_news(query, source_name, tz, cfg=None):
 
             host = urlparse(link).netloc.lower() if link else ""
             if _is_aggregator_host(host):
-                _dprint(cfg, f"  [GOOGLE] drop aggregator host={host} title={title[:50]}")
                 continue
 
             pub_val = getattr(e, "published", None) or getattr(e, "updated", None)
@@ -468,12 +422,10 @@ def fetch_from_google_news(query, source_name, tz, cfg=None):
             )
 
             if _is_aggregator_source(source):
-                _dprint(cfg, f"  [GOOGLE] drop aggregator source={source} title={title[:50]}")
                 continue
 
-            ex, reason = should_exclude_article(title, summary, return_reason=True)
-            if ex:
-                _dprint(cfg, f"  [GOOGLE] drop reason={reason} title={title[:50]}")
+            # ✅ 구글은 is_naver=False
+            if should_exclude_article(title, summary, is_naver=False):
                 continue
 
             articles.append(
@@ -485,103 +437,64 @@ def fetch_from_google_news(query, source_name, tz, cfg=None):
                     summary=summary,
                 )
             )
-        except Exception as ex:
-            _dprint(cfg, f"  [GOOGLE] exception: {ex}")
+        except Exception:
             continue
 
     return articles
 
 
 # =========================
-# Naver News (✅ 디버깅 로그 추가)
+# Naver News
 # =========================
 def fetch_from_naver_news(keyword, source_name, tz, pages=8, cfg=None):
     base = "https://search.naver.com/search.naver"
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
-        "Referer": "https://search.naver.com/",
-    }
+    headers = {"User-Agent": "Mozilla/5.0"}
     articles = []
 
-    # ✅ 기준 시간(anchor) = 뉴스레터 발행시간 (cfg가 없으면 now)
     if cfg is None:
         anchor = _safe_now(tz)
     else:
         anchor = _get_newsletter_anchor(cfg, tz)
 
-    _dprint(cfg, f"\n[NAVER] keyword='{keyword}' pages={pages} anchor={anchor.isoformat()}")
-
     for i in range(pages):
         start = 1 + i * 10
         params = {"where": "news", "query": keyword, "start": start}
-
-        try:
-            r = requests.get(base, params=params, headers=headers, timeout=15)
-        except Exception as ex:
-            _dprint(cfg, f"[NAVER] request exception page={i+1} ex={ex}")
-            break
-
-        txt = r.text or ""
-        _dprint(cfg, f"[NAVER] page={i+1} status={r.status_code} url={r.url} len={len(txt)}")
-
-        # ✅ 차단/캡차/봇 페이지 감지(대표 키워드)
-        block_signals = ["자동입력", "captcha", "접근이 제한", "비정상적인 접근", "로그인이 필요", "검색결과를 제공할 수 없습니다"]
-        if r.status_code in (401, 403, 429) or any(s in txt.lower() for s in ["captcha"]) or any(s in txt for s in block_signals):
-            _dprint(cfg, "[NAVER] ⚠️ possible blocked/captcha page detected")
-            # 차단이면 이후 페이지가 의미 없어서 중단
-            break
-
-        soup = BeautifulSoup(txt, "html.parser")
+        r = requests.get(base, params=params, headers=headers, timeout=10)
+        soup = BeautifulSoup(r.text, "html.parser")
 
         items = soup.select("div.news_wrap")
-        _dprint(cfg, f"[NAVER] items found={len(items)} (selector: div.news_wrap)")
-
-        # ✅ 네이버 마크업 변경으로 selector가 깨졌을 수도 있어서 보조 체크
         if not items:
-            alt = soup.select("li.bx")  # 예비 후보
-            _dprint(cfg, f"[NAVER] items alt(li.bx)={len(alt)}")
-            if not alt:
-                break
-            # alt를 items처럼 돌리기 위해 대체
-            items = alt
+            break
 
-        for idx, it in enumerate(items[:50]):  # 한 페이지에서 너무 많이 찍히면 로그 폭발해서 안전하게 50개까지만
+        for it in items:
             a = it.select_one("a.news_tit")
             if not a:
-                # alt 구조일 때 링크 셀렉터가 다를 수 있어 보조
-                a = it.select_one("a")  # 마지막 보조
-                if not a:
-                    continue
+                continue
 
-            title = a.get("title", "") or a.get_text(" ", strip=True)
+            title = a.get("title", "")
             link = a.get("href", "")
 
             host = urlparse(link).netloc.lower() if link else ""
             if _is_aggregator_host(host):
-                _dprint(cfg, f"  [NAVER] drop aggregator host={host} title={title[:60]}")
                 continue
 
             summary_tag = it.select_one("div.news_dsc")
             summary = summary_tag.get_text(" ", strip=True) if summary_tag else ""
 
-            ex, reason = should_exclude_article(title, summary, return_reason=True)
-            if ex:
-                _dprint(cfg, f"  [NAVER] drop reason={reason} title={title[:60]}")
+            # ✅ 네이버는 is_naver=True 로 필터(짧은 요약 컷 규칙 비활성화)
+            if should_exclude_article(title, summary, is_naver=True):
                 continue
 
             press = it.select_one("a.info.press")
             source = press.get_text(strip=True) if press else source_name
+
             if _is_aggregator_source(source):
-                _dprint(cfg, f"  [NAVER] drop aggregator source={source} title={title[:60]}")
                 continue
 
             time_text = _extract_naver_time_text(it)
             published = _parse_naver_time_text_to_published(time_text, anchor, tz)
             if published is None:
                 published = _safe_now(tz)
-
-            _dprint(cfg, f"  [NAVER] keep title={title[:50]} time_text='{time_text}' published={published.isoformat()}")
 
             articles.append(
                 Article(
@@ -594,12 +507,6 @@ def fetch_from_naver_news(keyword, source_name, tz, pages=8, cfg=None):
                 )
             )
 
-        # 디버깅 시 “첫 페이지만” 보고 싶으면 config.yaml에 debug_one_page: true 넣기
-        if cfg and cfg.get("debug_one_page", False):
-            _dprint(cfg, "[NAVER] debug_one_page enabled -> stop after first page")
-            break
-
-    _dprint(cfg, f"[NAVER] total kept={len(articles)} for keyword='{keyword}'")
     return articles
 
 
@@ -620,7 +527,7 @@ def fetch_all_articles(cfg):
                 all_articles += fetch_from_naver_news(kw, src["name"], tz, naver_pages, cfg=cfg)
             else:
                 q = f"{kw} site:{src['host']}" if src.get("host") else kw
-                all_articles += fetch_from_google_news(q, src["name"], tz, cfg=cfg)
+                all_articles += fetch_from_google_news(q, src["name"], tz)
 
     return all_articles
 
@@ -632,11 +539,13 @@ def filter_yesterday_articles(articles, cfg):
 
 
 def filter_out_finance_articles(articles):
-    return [a for a in articles if not should_exclude_article(a.title, a.summary)]
+    # ✅ newsletter.py 호환: 여기서 다시 should_exclude를 태우려면 is_naver를 유지해야 하므로
+    # ✅ 기존처럼 "그냥 통과" 혹은 호출부에서 a.is_naver를 넘겨주는 방식으로 개선 가능.
+    # ✅ 일단 기존 동작을 최대한 유지하려면, 아래처럼 a.is_naver를 넘겨서 재필터링.
+    return [a for a in articles if not should_exclude_article(a.title, a.summary, is_naver=getattr(a, "is_naver", False))]
 
 
 def filter_out_yakup_articles(articles):
-    """약업(야쿠프) 기사만 확실히 제외."""
     out = []
     for a in articles:
         host = urlparse(a.link).netloc.lower() if getattr(a, "link", None) else ""
