@@ -1,6 +1,6 @@
 timezone: Asia/Seoul
 
-newsletter_publish_hour: 9
+#newsletter_publish_hour: 9
 
 debug: true
 
