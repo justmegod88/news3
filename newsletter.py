@@ -287,23 +287,15 @@ def main():
 
     forced_articles = [
         Article(
-            title="[강제추가] 네이버 뉴스",
+            title="AI눈 장착하니, 불량률 1%에서 0.01%로 줄었다",
             link="https://n.news.naver.com/article/016/0002584370?sid=101",
             published=now_kst,
             source="네이버뉴스",
-            summary="(임시) 수집 누락으로 수동 추가된 기사입니다.",
+            summary="네이버전 오송 공장, 라인곳곳 고해상동 카메라 설치 AI가 0.1초만에 불량 렌즈 판독",
             image_url=None,
             is_naver=True,
-        ),
-        Article(
-            title="[강제추가] AutoDaily",
-            link="https://www.autodaily.co.kr/news/articleView.html",
-            published=now_kst,
-            source="AutoDaily",
-            summary="(임시) 수집 누락으로 수동 추가된 기사입니다.",
-            image_url=None,
-            is_naver=False,
-        ),
+        )
+    
     ]
 
     articles.extend(forced_articles)
