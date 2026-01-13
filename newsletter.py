@@ -126,9 +126,9 @@ def _pick_representative(group):
 
 
 # =========================
-# ✅ (C) 기사 리스트용 중복 제거 + 묶기 (기존 유지: threshold=0.80)
+# ✅ (C) 기사 리스트용 중복 제거 + 묶기 (기존 유지: threshold=0.60)
 # =========================
-def dedupe_and_group_articles(articles, threshold: float = 0.73):
+def dedupe_and_group_articles(articles, threshold: float = 0.60):
     """
     반환: 대표 기사 리스트
     대표 기사에는 rep.duplicates = [{source, link, title}, ...] 가 생김
@@ -252,10 +252,10 @@ def _brief_sim(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 
-def dedupe_for_brief(articles, threshold: float = 0.70, max_keep: int = 10):
+def dedupe_for_brief(articles, threshold: float = 0.60, max_keep: int = 10):
     """
     ✅ 브리핑(상단 AI 요약) 전용 중복 제거
-    - "주제 같으면 제거" 목적이라 threshold를 0.70로 낮춤 (요청 반영)
+    - "주제 같으면 제거" 목적이라 threshold를 0.60로 낮춤 (요청 반영)
     - summary가 있으면 summary로 비교, 없으면 title로 비교
     """
     kept = []
