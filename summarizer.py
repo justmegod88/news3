@@ -153,6 +153,30 @@ def _is_image_only_ad_page(text: str, img_count: int) -> bool:
 
 
 # =========================
+# ✅ NEW: 2~3문장 + 글자수 강제 컷(네이버 OpenAPI 포함 전체 공통 적용)
+# =========================
+_SENT_SPLIT_RE = re.compile(r"(?<=[\.\?\!…])\s+|(?<=다\.)\s+|(?<=니다\.)\s+|(?<=요\.)\s+")
+
+def _enforce_2to3_sentences(text: str, max_sentences: int = 3, max_chars: int = 220) -> str:
+    """
+    - 모델이 길게 쓰거나 문장 수가 늘어나는 경우를 방지하기 위한 최종 안전망.
+    - 1~3문장 범위로만 잘라서 반환 (가능한 한 원문 보존).
+    """
+    s = re.sub(r"\s+", " ", (text or "")).strip()
+    if not s:
+        return s
+
+    parts = [p.strip() for p in _SENT_SPLIT_RE.split(s) if p.strip()]
+    if parts:
+        s = " ".join(parts[:max_sentences]).strip()
+
+    if len(s) > max_chars:
+        s = s[:max_chars].rstrip() + "…"
+
+    return s
+
+
+# =========================
 # OpenAI calls / prompts
 # =========================
 def _call_openai_2to3_sentences(client, prompt: str, max_chars: int = 220) -> str:
@@ -316,6 +340,9 @@ def refine_article_summaries(articles: List) -> None:
             else:
                 summary = _norm_text(body_text)[:MAX_SUMMARY_CHARS].rstrip()
 
+            # ✅ NEW: 최종 2~3문장 + 220자 강제
+            summary = _enforce_2to3_sentences(summary, max_sentences=3, max_chars=MAX_SUMMARY_CHARS)
+
             try:
                 a.summary = summary
             except Exception:
@@ -335,6 +362,9 @@ def refine_article_summaries(articles: List) -> None:
 
             if len(summary) > MAX_SUMMARY_CHARS:
                 summary = summary[:MAX_SUMMARY_CHARS].rstrip() + "…"
+
+            # ✅ NEW: 최종 2~3문장 + 220자 강제
+            summary = _enforce_2to3_sentences(summary, max_sentences=3, max_chars=MAX_SUMMARY_CHARS)
 
             try:
                 a.summary = summary
@@ -356,6 +386,9 @@ def refine_article_summaries(articles: List) -> None:
         # 공통: 최종 컷
         if len(summary) > MAX_SUMMARY_CHARS:
             summary = summary[:MAX_SUMMARY_CHARS].rstrip() + "…"
+
+        # ✅ NEW: 최종 2~3문장 + 220자 강제
+        summary = _enforce_2to3_sentences(summary, max_sentences=3, max_chars=MAX_SUMMARY_CHARS)
 
         try:
             a.summary = summary
@@ -402,7 +435,7 @@ def summarize_overall(articles: List) -> str:
     ✅ 임원용 "어제 기사 AI 브리핑" (이슈 묶기형)
     - 1문장: 총평(어제 핵심 흐름/경향)  ※ 단, 입력에 근거한 범위 내에서만
     - 2~3문장: 서로 다른 이슈 단위 요약 (기사 1개=1문장 나열 금지)
-    - 과장/추측 금지 
+    - 과장/추측 금지
     - 임원보고용 공손한 말투
     """
     # 전망/평가 금지 (특히 "~로 보인다/~할 듯" 금지)
@@ -473,6 +506,10 @@ def summarize_overall(articles: List) -> str:
 
         if len(text) > 420:
             text = text[:420].rstrip() + "…"
+
+        # ✅ NEW: 문장 수가 늘어지는 경우를 방지(최대 3문장 범위로만 안전 컷)
+        # (target_sentences는 1~3이므로, 상한 3으로만 강제)
+        text = _enforce_2to3_sentences(text, max_sentences=3, max_chars=420)
 
         return text
     except Exception:
