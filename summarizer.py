@@ -291,7 +291,7 @@ def refine_article_summaries(articles: List) -> None:
     """
     client = _get_client()
 
-    LONG_SUMMARY_THRESHOLD = 260
+    LONG_SUMMARY_THRESHOLD = 150
     MAX_SUMMARY_CHARS = 105
 
     for a in articles:
@@ -453,8 +453,8 @@ def summarize_overall(articles: List) -> str:
         s = (getattr(a, "summary", "") or "").strip()
         s = re.sub(r"\s+", " ", s).strip()
 
-        if len(s) > 260:
-            s = s[:260].rstrip() + "…"
+        if len(s) > 150:
+            s = s[:150].rstrip() + "…"
 
         # summary가 빈 값이면(광고/텍스트 없음) 전체 요약 재료로 쓰지 않음
         if not s:
