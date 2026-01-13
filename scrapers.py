@@ -109,7 +109,7 @@ AD_SNIPPET_HINTS = [
 
 # 기타 문구 (그외 삭제하고 싶은 워딩_수정)
 ETC_HINTS = [
-    "테슬라", "자동차", "제약", "바이오","백신","얀센","컨슈머","서지컬","치료제","메디컬","개원", "모금","환청","치료","진료",
+    "테슬라", "자동차", "제약", "바이오","백신","얀센","컨슈머","서지컬","치료제","메디컬","개원", "모금","환청","진료","아산아이톡안과",
 ]
 
 # 광학/렌즈 업계 화이트리스트
@@ -299,7 +299,7 @@ def should_exclude_article(title: str, summary: str = "", is_naver: bool = False
 
     # 기타 문구
     if any(h in summary for h in ETC_HINTS):
-            return True
+        return True
     
     
     # ✅ 6) 포털 광고/낚시형 요약: 무조건 제거
