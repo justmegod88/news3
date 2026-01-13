@@ -1,4 +1,3 @@
-# scrapers.py
 import datetime as dt
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
@@ -36,7 +35,7 @@ class Article:
 
 
 # =========================
-# Exclusion rules (원본 유지)
+# Exclusion rules
 # =========================
 FINANCE_KEYWORDS = [
     "주가", "주식", "증시", "투자", "재무", "실적",
@@ -52,7 +51,7 @@ YAKUP_BLOCK_HOSTS = [
 ]
 YAKUP_BLOCK_TOKENS = ["약업", "약업신문", "약학신문", "yakup"]
 
-# ✅ 재배포/애그리게이터(원문 아닌 경우가 많아서 날짜 오염 유발) - (원본 유지/확장 가능)
+# ✅ 재배포/애그리게이터(원문 아닌 경우가 많아서 날짜 오염 유발) - 우선 차단
 AGGREGATOR_BLOCK_HOSTS = [
     "msn.com", "www.msn.com",
     "flipboard.com", "www.flipboard.com",
@@ -60,6 +59,8 @@ AGGREGATOR_BLOCK_HOSTS = [
     "newsbreak.com", "www.newsbreak.com",
 ]
 
+# ✅ (추가) 구글뉴스 RSS에서 링크가 news.google.com으로 남는 경우가 많아서
+# ✅ source(언론사명)로도 재배포를 차단
 AGGREGATOR_BLOCK_SOURCES = [
     "msn",
     "flipboard",
@@ -124,11 +125,18 @@ def _normalize(text: str) -> str:
 
 
 def _is_aggregator_host(host: str) -> bool:
+    """
+    ✅ 재배포/애그리게이터 도메인 차단용
+    - 정확히 일치 + 서브도메인까지 커버(endswith)
+    """
     h = (host or "").lower().strip()
     if not h:
         return False
+
+    # netloc에 포트가 붙는 케이스 제거
     if ":" in h:
         h = h.split(":", 1)[0]
+
     for b in AGGREGATOR_BLOCK_HOSTS:
         b = b.lower()
         if h == b or h.endswith("." + b):
@@ -137,9 +145,14 @@ def _is_aggregator_host(host: str) -> bool:
 
 
 def _is_aggregator_source(source: str) -> bool:
+    """
+    ✅ (추가) source(언론사명) 기반 차단
+    - 구글뉴스 RSS에서 link가 news.google.com으로 남는 케이스 방어
+    """
     s = (source or "").strip().lower()
     if not s:
         return False
+    # "MSN" / "msn" / "MSN Korea" 같은 변형도 커버
     return any(b in s for b in AGGREGATOR_BLOCK_SOURCES)
 
 
@@ -207,17 +220,31 @@ def _safe_now(tz):
     return dt.datetime.now(tz)
 
 
-def _newsletter_anchor_now(cfg, tz) -> dt.datetime:
+# =========================
+# ✅ Newsletter publish anchor (NEW)
+# =========================
+def _get_newsletter_anchor(cfg, tz) -> dt.datetime:
     """
-    ✅ 핵심: '실행 시각'이 아니라 '뉴스레터 발행 기준 시각'을 기준으로 상대시간을 환산
-    - 예: 발행시간이 09:00인데, 실제 실행이 11:50이어도 기준은 09:00으로 고정
-    - config.yaml에 publish_hour / publish_minute 없으면 기본 9:00
+    뉴스레터 '발행 기준시간' anchor.
+    - config.yaml에 newsletter_publish_hour가 있으면 그 시각 기준으로 잡음 (0~23)
+    - 없으면 기존처럼 '현재 시각' 기준(= now)으로 동작
     """
     now = _safe_now(tz)
-    h = int(cfg.get("publish_hour", 9))
-    m = int(cfg.get("publish_minute", 0))
-    anchor = now.replace(hour=h, minute=m, second=0, microsecond=0)
-    return anchor
+    h = cfg.get("newsletter_publish_hour", None)
+    try:
+        if h is None:
+            return now
+        h = int(h)
+        if h < 0 or h > 23:
+            return now
+        anchor = now.replace(hour=h, minute=0, second=0, microsecond=0)
+        # 만약 지금이 아직 발행시각 이전이라면(예: 새벽에 돌았는데 publish_hour=9),
+        # anchor는 '오늘 9시'가 아니라 '어제 9시'가 되어야 어제 범위를 제대로 잡음
+        if now < anchor:
+            anchor = anchor - dt.timedelta(days=1)
+        return anchor
+    except Exception:
+        return now
 
 
 # =========================
@@ -250,91 +277,79 @@ def parse_google_title_and_press(raw_title: str) -> Tuple[str, str]:
 
 
 def resolve_final_url(link: str) -> str:
-    """
-    ✅ 구글뉴스 링크에 url= 로 원문이 들어있는 경우를 최대한 원문으로 풀어줌
-    """
     try:
         qs = parse_qs(urlparse(link).query)
-        if "url" in qs and qs["url"]:
+        if "url" in qs:
             return qs["url"][0]
     except Exception:
         pass
     return link
 
 
-def _parse_naver_time_text_to_datetime(time_text: str, anchor_now: dt.datetime, tz) -> Optional[dt.datetime]:
+# =========================
+# ✅ Naver relative/absolute time parse (NEW)
+# =========================
+_NAVER_REL_RE = re.compile(r"^\s*(\d+)\s*(초|분|시간|일)\s*전\s*$")
+_NAVER_ABS_RE = re.compile(r"^\s*(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?\s*$")
+
+def _parse_naver_time_text_to_published(time_text: str, anchor: dt.datetime, tz) -> Optional[dt.datetime]:
     """
-    ✅ 네이버 검색 결과에 있는 시간 텍스트를 anchor_now 기준으로 dt로 변환
-    케이스 예:
-      - "4시간 전"
-      - "18분 전"
-      - "1일 전"
-      - "2026.01.12."
-      - "2026.01.12. 오후 3:10" (가끔)
+    네이버 검색 결과에 보이는 시간 문자열을 published(datetime)로 변환.
+    - "n시간 전" / "n일 전" / "n분 전" / "n초 전"
+    - "YYYY.MM.DD."
     """
-    s = (time_text or "").strip()
-    if not s:
+    if not time_text:
         return None
 
-    s = s.replace(" ", "")
+    t = time_text.strip()
 
-    # 1) "몇분 전"
-    m = re.match(r"(\d+)분전", s)
+    m = _NAVER_REL_RE.match(t)
     if m:
-        mins = int(m.group(1))
-        return (anchor_now - dt.timedelta(minutes=mins)).astimezone(tz)
+        n = int(m.group(1))
+        unit = m.group(2)
+        if unit == "초":
+            return anchor - dt.timedelta(seconds=n)
+        if unit == "분":
+            return anchor - dt.timedelta(minutes=n)
+        if unit == "시간":
+            return anchor - dt.timedelta(hours=n)
+        if unit == "일":
+            return anchor - dt.timedelta(days=n)
 
-    # 2) "몇시간 전"
-    m = re.match(r"(\d+)시간전", s)
+    m = _NAVER_ABS_RE.match(t)
     if m:
-        hours = int(m.group(1))
-        return (anchor_now - dt.timedelta(hours=hours)).astimezone(tz)
+        y = int(m.group(1))
+        mo = int(m.group(2))
+        d = int(m.group(3))
+        # 네이버는 날짜만 주는 경우가 많아서 "그 날짜의 정오"로 두고 date 비교만 하게 처리
+        # (시간이 없는데 00:00로 두면 경계에서 오판 가능성 ↑)
+        try:
+            return dt.datetime(y, mo, d, 12, 0, 0, tzinfo=tz)
+        except Exception:
+            return None
 
-    # 3) "1일 전", "2일 전" (일 단위)
-    m = re.match(r"(\d+)일전", s)
-    if m:
-        days = int(m.group(1))
-        return (anchor_now - dt.timedelta(days=days)).astimezone(tz)
-
-    # 4) 절대 날짜 "YYYY.MM.DD." 또는 "YYYY.MM.DD"
-    m = re.match(r"(\d{4})\.(\d{2})\.(\d{2})\.?", s)
-    if m:
-        y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        # 시간이 없으면 12:00로 두는 게 안전(필터는 'date' 기준이라 상관없음)
-        return dt.datetime(y, mo, d, 12, 0, 0, tzinfo=tz)
-
-    # 5) 혹시 파서가 먹는 형태면 마지막으로 시도
-    try:
-        d = date_parser.parse(time_text)
-        if d.tzinfo is None:
-            d = d.replace(tzinfo=tz)
-        else:
-            d = d.astimezone(tz)
-        return d
-    except Exception:
-        return None
+    return None
 
 
-def _extract_naver_time_text(news_wrap) -> str:
+def _extract_naver_time_text(it) -> str:
     """
-    ✅ 네이버 검색 결과에서 시간 텍스트를 최대한 안정적으로 뽑기
-    - 보통 info_group 안의 span.info 중 날짜/시간이 들어있는 게 있음
+    네이버 검색 결과에서 '4시간 전 / 1일 전 / 2026.01.12.' 같은 텍스트를 뽑음.
+    네이버 마크업이 자주 바뀌어서, 여러 후보를 순서대로 시도.
     """
-    # 가장 흔한 케이스
-    info_group = news_wrap.select_one("div.news_info div.info_group")
-    if info_group:
-        infos = info_group.select("span.info")
-        # '언론사'도 span.info로 들어올 수 있어서, 날짜/시간처럼 보이는 걸 우선 선택
-        for sp in infos:
-            t = sp.get_text(strip=True)
-            if re.search(r"(분\s*전|시간\s*전|일\s*전|\d{4}\.\d{2}\.\d{2})", t):
-                return t
+    # 1) 일반적으로 많이 잡히는 케이스: span.info
+    cand = it.select("span.info")
+    for s in cand:
+        txt = s.get_text(" ", strip=True)
+        # press(언론사)도 span.info로 나오는 경우가 있어, 시간 패턴만 통과
+        if _NAVER_REL_RE.match(txt) or _NAVER_ABS_RE.match(txt):
+            return txt
 
-    # 백업: 전체에서 찾기
-    for sp in news_wrap.select("span.info"):
-        t = sp.get_text(strip=True)
-        if re.search(r"(분\s*전|시간\s*전|일\s*전|\d{4}\.\d{2}\.\d{2})", t):
-            return t
+    # 2) a.info / span.info_group 내
+    cand2 = it.select("a.info, span.info_group span")
+    for s in cand2:
+        txt = s.get_text(" ", strip=True)
+        if _NAVER_REL_RE.match(txt) or _NAVER_ABS_RE.match(txt):
+            return txt
 
     return ""
 
@@ -387,9 +402,9 @@ def deduplicate_articles(articles: List[Article]) -> List[Article]:
 
 
 # =========================
-# Google News (RSS)
+# Google News (✅ 안정화 버전)
 # =========================
-def fetch_from_google_news(query, source_name, tz, cfg):
+def fetch_from_google_news(query, source_name, tz):
     feed = feedparser.parse(build_google_news_url(query))
     articles = []
 
@@ -401,16 +416,17 @@ def fetch_from_google_news(query, source_name, tz, cfg):
             summary = clean_summary(getattr(e, "summary", "") or "")
             link = resolve_final_url(getattr(e, "link", "") or "")
 
-            # ✅ 0) 재배포 도메인 차단
+            # ✅ 0) 도메인 기준 재배포 차단(링크가 msn 등으로 바로 오는 경우)
             host = urlparse(link).netloc.lower() if link else ""
             if _is_aggregator_host(host):
                 continue
 
-            # ✅ published/updated 없으면 (날짜 오염 방지) 아예 스킵
+            # ✅ published/updated가 없는 경우가 있어서 안전 처리
             pub_val = getattr(e, "published", None) or getattr(e, "updated", None)
-            if not pub_val:
-                continue
-            published = parse_rss_datetime(pub_val, tz)
+            if pub_val:
+                published = parse_rss_datetime(pub_val, tz)
+            else:
+                published = _safe_now(tz)
 
             source = (
                 getattr(getattr(e, "source", None), "title", "")
@@ -418,7 +434,8 @@ def fetch_from_google_news(query, source_name, tz, cfg):
                 or source_name
             )
 
-            # ✅ source 기반 재배포 차단(보험)
+            # ✅ 0.5) (추가) source 기준 재배포 차단
+            #     링크가 news.google.com으로 남아도 "MSN" 같은 source면 컷
             if _is_aggregator_source(source):
                 continue
 
@@ -441,14 +458,18 @@ def fetch_from_google_news(query, source_name, tz, cfg):
 
 
 # =========================
-# Naver News (검색 결과)
+# Naver News
 # =========================
-def fetch_from_naver_news(keyword, source_name, tz, cfg, pages=8):
+def fetch_from_naver_news(keyword, source_name, tz, pages=8, cfg=None):
     base = "https://search.naver.com/search.naver"
     headers = {"User-Agent": "Mozilla/5.0"}
     articles = []
 
-    anchor_now = _newsletter_anchor_now(cfg, tz)
+    # ✅ 기준 시간(anchor) = 뉴스레터 발행시간 (cfg가 없으면 now)
+    if cfg is None:
+        anchor = _safe_now(tz)
+    else:
+        anchor = _get_newsletter_anchor(cfg, tz)
 
     for i in range(pages):
         start = 1 + i * 10
@@ -468,7 +489,7 @@ def fetch_from_naver_news(keyword, source_name, tz, cfg, pages=8):
             title = a.get("title", "")
             link = a.get("href", "")
 
-            # ✅ 링크 도메인 차단(보험)
+            # ✅ 네이버 링크 도메인 차단(안전망)
             host = urlparse(link).netloc.lower() if link else ""
             if _is_aggregator_host(host):
                 continue
@@ -482,16 +503,16 @@ def fetch_from_naver_news(keyword, source_name, tz, cfg, pages=8):
             press = it.select_one("a.info.press")
             source = press.get_text(strip=True) if press else source_name
 
-            # ✅ source 기준 재배포 차단(보험)
+            # ✅ (추가) 네이버도 source 기준 재배포 차단(혹시 모를 변형)
             if _is_aggregator_source(source):
                 continue
 
-            # ✅ 핵심: 네이버 상대시간/절대날짜를 anchor_now 기준으로 published로 환산
+            # ✅ 핵심: 네이버 '상대시간/절대날짜'를 published로 환산
             time_text = _extract_naver_time_text(it)
-            published = _parse_naver_time_text_to_datetime(time_text, anchor_now, tz)
+            published = _parse_naver_time_text_to_published(time_text, anchor, tz)
             if published is None:
-                # 날짜가 없으면 오염 가능성이 높으니 스킵(속도/정확도 우선)
-                continue
+                # 파싱 실패 시 fallback (기존 동작 유지)
+                published = _safe_now(tz)
 
             articles.append(
                 Article(
@@ -521,24 +542,18 @@ def fetch_all_articles(cfg):
     for src in sources:
         for kw in keywords:
             if src["name"] == "NaverNews":
-                all_articles += fetch_from_naver_news(kw, src["name"], tz, cfg, naver_pages)
+                all_articles += fetch_from_naver_news(kw, src["name"], tz, naver_pages, cfg=cfg)
             else:
                 q = f"{kw} site:{src['host']}" if src.get("host") else kw
-                all_articles += fetch_from_google_news(q, src["name"], tz, cfg)
+                all_articles += fetch_from_google_news(q, src["name"], tz)
 
     return all_articles
 
 
 def filter_yesterday_articles(articles, cfg):
-    """
-    ✅ '어제(달력 기준)' 필터
-    - 기준 시각은 실행 시각이 아니라 newsletter anchor (예: 09:00 고정)
-    - anchor 기준으로 '어제 날짜'를 계산해서 date == yesterday 로 필터
-    """
     tz = _get_tz(cfg)
-    anchor_now = _newsletter_anchor_now(cfg, tz)
-    yesterday = (anchor_now.date() - dt.timedelta(days=1))
-    return [a for a in articles if getattr(a, "published", None) and a.published.date() == yesterday]
+    y = _safe_now(tz).date() - dt.timedelta(days=1)
+    return [a for a in articles if a.published.date() == y]
 
 
 def filter_out_finance_articles(articles):
@@ -546,7 +561,7 @@ def filter_out_finance_articles(articles):
 
 
 def filter_out_yakup_articles(articles):
-    """약업(야쿠프) 기사만 확실히 제외(날짜 문제 해결되면 cfg로 조절 가능)."""
+    """약업(야쿠프) 기사만 확실히 제외."""
     out = []
     for a in articles:
         host = urlparse(a.link).netloc.lower() if getattr(a, "link", None) else ""
