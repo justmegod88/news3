@@ -176,11 +176,7 @@ PRESS_DOMAIN_MAP_BASE = {
    "stardailynews": "스타데일리",
    "ablenews.co.kr" : "에이블뉴스",
    "namdonews.com": "남도일보",
-   "fnnews.com": "파이낸셜뉴스"
-    
-    
-    
-
+   "fnnews.com": "파이낸셜뉴스",
 
 }
 
