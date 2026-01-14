@@ -106,6 +106,6 @@ exclude_sources:
 email:
   from: skim228@its.jnj.com
   to:
-    - skim228@ITS.JNJ.com
+    - skim228@its.jnj.com
   
   subject_prefix: "[ACUVUE Daily News]"
