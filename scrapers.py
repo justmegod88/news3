@@ -174,6 +174,10 @@ PRESS_DOMAIN_MAP_BASE = {
    "domin.co.kr": "전북도민일보",
    "cctimes.kr": "충청타임즈",
    "stardailynews": "스타데일리",
+   "ablenews.co.kr" : "에이블뉴스",
+   "namdonews.com": "남도일보",
+   "fnnews.com": "파이낸셜뉴스"
+    
     
     
 
