@@ -179,7 +179,7 @@ def _enforce_2to3_sentences(text: str, max_sentences: int = 3, max_chars: int = 
 # =========================
 # OpenAI calls / prompts
 # =========================
-def _call_openai_2to3_sentences(client, prompt: str, max_chars: int = 220) -> str:
+def _call_openai_2to3_sentences(client, prompt: str, max_chars: int = 105) -> str:
     r = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
@@ -241,7 +241,7 @@ def _prompt_title_only(title: str) -> str:
 출력:
 - 사실 진술형 문장만
 - 2~3문장
-- 200자 이내
+- 105자 이내
 - 과장/해석/평가 표현 금지
 
 [제목]
