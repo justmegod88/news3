@@ -126,7 +126,7 @@ def _pick_representative(group):
 
 
 # =========================
-# ✅ (C) 기사 리스트용 중복 제거 + 묶기 (기존 유지: threshold=0.78)
+# ✅ (C) 기사 리스트용 중복 제거 + 묶기 (threshold=0.78)
 # =========================
 def dedupe_and_group_articles(articles, threshold: float = 0.78):
     """
@@ -232,7 +232,7 @@ def remove_cross_category_duplicates(*category_lists):
 
 
 # =========================
-# ✅ (E) 브리핑(상단 요약) 전용 중복 제거: threshold=0.78 (요청 반영)
+# ✅ (E) 브리핑(상단 요약) 전용 중복 제거: threshold=0.70
 # =========================
 def _brief_norm(s: str) -> str:
     s = (s or "").lower().strip()
@@ -255,7 +255,6 @@ def _brief_sim(a: str, b: str) -> float:
 def dedupe_for_brief(articles, threshold: float = 0.70, max_keep: int = 10):
     """
     ✅ 브리핑(상단 AI 요약) 전용 중복 제거
-    - "주제 같으면 제거" 목적이라 threshold를 0.50로 낮춤 (요청 반영)
     - summary가 있으면 summary로 비교, 없으면 title로 비교
     """
     kept = []
@@ -284,7 +283,7 @@ def dedupe_for_brief(articles, threshold: float = 0.70, max_keep: int = 10):
 
 
 # =========================
-# ✅ (F) 브리핑 입력 후보 선택 (카테고리 분산 + 빈 summary 제외) + 브리핑 전용 dedupe(0.78)
+# ✅ (F) 브리핑 입력 후보 선택
 # =========================
 def _has_summary(a) -> bool:
     s = (getattr(a, "summary", "") or "").strip()
@@ -302,7 +301,7 @@ def select_articles_for_brief(
     """
     - 광고/단순 이미지로 summary가 빈 값인 기사는 제외
     - 카테고리별로 1~2개씩 분산 선택(맨 위 편향 완화)
-    - 브리핑 전용 dedupe(주제 중복 제거): threshold=0.70 적용
+    - 브리핑 전용 dedupe: threshold=0.70 적용
     """
     pools = [
         ("ACUVUE", [a for a in (acuvue_articles or []) if _has_summary(a)]),
@@ -335,7 +334,7 @@ def select_articles_for_brief(
         seen.add(key)
         deduped.append(a)
 
-    # ✅ 3) 브리핑 전용 "주제 중복" 제거 (요청: 0.70)
+    # 3) 브리핑 전용 "주제 중복" 제거
     deduped = dedupe_for_brief(deduped, threshold=0.70, max_keep=max_items)
 
     return deduped[:max_items]
@@ -367,30 +366,50 @@ def main():
     cfg = load_config()
     tz = ZoneInfo(cfg.get("timezone", "Asia/Seoul"))
 
+    print("[newsletter] START")
+    print("[newsletter] tz:", str(tz))
+    print("[newsletter] debug flags:", {k: cfg.get(k) for k in ["debug", "debug_one_page"] if k in cfg})
+
     # 1) 수집
     articles = fetch_all_articles(cfg)
+    print("[newsletter] fetched:", len(articles))
 
     # 2) 약업신문 제외 + 투자/재무 제외
     articles = filter_out_yakup_articles(articles)
+    print("[newsletter] after yakup filter:", len(articles))
+
     articles = filter_out_finance_articles(articles)
+    print("[newsletter] after finance filter:", len(articles))
 
     # 3) 날짜 필터: 어제 기사만
     articles = filter_yesterday_articles(articles, cfg)
+    print("[newsletter] after yesterday filter:", len(articles))
 
     # 4) 1차 중복 제거(빠른 제거: URL+제목)
     articles = deduplicate_articles(articles)
+    print("[newsletter] after deduplicate_articles(URL+title):", len(articles))
 
     # 5) 기사별 요약(summary 정제/생성)
     refine_article_summaries(articles)
+    print("[newsletter] after refine_article_summaries:", len(articles))
 
     # 6) 최종 안전 필터
+    before = len(articles)
     articles = [a for a in articles if not should_exclude_article(a.title, a.summary)]
+    print("[newsletter] after final safety filter:", len(articles), "(removed:", before - len(articles), ")")
 
-    # ✅ 7) 기사 리스트용 중복 묶기(기존 유지: 0.78)
+    # 7) 기사 리스트용 중복 묶기(0.78)
     articles = dedupe_and_group_articles(articles, threshold=0.78)
+    print("[newsletter] after dedupe_and_group_articles(0.78):", len(articles))
 
     # 8) 분류
     categorized = categorize_articles(articles)
+    print("[newsletter] categorized counts:",
+          "acuvue=", len(categorized.acuvue),
+          "company=", len(categorized.company),
+          "product=", len(categorized.product),
+          "trend=", len(categorized.trend),
+          "eye_health=", len(categorized.eye_health))
 
     # 9) 카테고리 간 중복 제거
     acuvue_list, company_list, product_list, trend_list, eye_health_list = remove_cross_category_duplicates(
@@ -400,8 +419,14 @@ def main():
         categorized.trend,
         categorized.eye_health,
     )
+    print("[newsletter] after cross-category dedupe:",
+          "acuvue=", len(acuvue_list),
+          "company=", len(company_list),
+          "product=", len(product_list),
+          "trend=", len(trend_list),
+          "eye_health=", len(eye_health_list))
 
-    # ✅ 10) 상단 브리핑(브리핑 전용 dedupe=0.78 적용된 picked로 요약)
+    # 10) 상단 브리핑(0.70)
     summary = build_yesterday_ai_brief(
         acuvue_list,
         company_list,
@@ -409,6 +434,7 @@ def main():
         trend_list,
         eye_health_list,
     )
+    print("[newsletter] brief chars:", len(summary or ""))
 
     # 11) 템플릿 렌더링
     env = Environment(loader=FileSystemLoader("."), autoescape=True)
@@ -423,6 +449,7 @@ def main():
         trend_articles=trend_list,
         eye_health_articles=eye_health_list,
     )
+    print("[newsletter] html chars:", len(html or ""))
 
     # 12) 메일 제목
     email = cfg["email"]
@@ -431,12 +458,14 @@ def main():
     subject = f"{subject_prefix} 어제 기사 브리핑 - {yesterday_str}"
 
     # 13) 발송
+    print("[newsletter] SENDING... subject:", subject)
     send_email_html(
         subject=subject,
         html_body=html,
         from_addr=email["from"],
         to_addrs=email["to"],
     )
+    print("[newsletter] DONE")
 
 
 if __name__ == "__main__":
