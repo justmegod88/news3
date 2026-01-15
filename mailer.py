@@ -44,15 +44,6 @@ def _make_inline_png_attachment(path: str, cid: str) -> Attachment:
     return att
 
 
-def _mask_key(k: str) -> str:
-    if not k:
-        return ""
-    k = k.strip()
-    if len(k) <= 8:
-        return "*" * len(k)
-    return f"{k[:4]}...{k[-4:]}"
-
-
 def send_email_html(
     subject: str,
     html_body: str,
@@ -60,7 +51,6 @@ def send_email_html(
     to_addrs: List[str],
 ):
     """SendGrid API를 이용해 HTML 메일 발송 (로고 CID inline 포함)"""
-
     api_key = os.getenv("SENDGRID_API_KEY")
     if not api_key:
         raise RuntimeError("SENDGRID_API_KEY 환경변수가 설정되어 있지 않습니다.")
@@ -72,14 +62,6 @@ def send_email_html(
         recipients = [x.strip() for x in override_to.split(",") if x.strip()]
     else:
         recipients = to_addrs
-
-    # ✅ 디버그(중요): Actions 로그에서 “진짜 여기까지 왔는지” 확인용
-    print("[mailer] send_email_html() called")
-    print("[mailer] subject:", subject)
-    print("[mailer] from:", actual_from)
-    print("[mailer] to:", recipients)
-    print("[mailer] html chars:", len(html_body or ""))
-    print("[mailer] SENDGRID_API_KEY:", _mask_key(api_key))
 
     message = Mail(
         from_email=actual_from,
@@ -99,26 +81,9 @@ def send_email_html(
     try:
         sg = SendGridAPIClient(api_key)
         response = sg.send(message)
-
-        # ✅ 여기 3줄이 핵심: SendGrid에 “요청이 접수”됐는지 추적
-        print("[mailer] SendGrid status:", response.status_code)
-        # headers는 dict처럼 옴. 있으면 request-id / message-id 같은 식별자가 찍힘
-        try:
-            headers = dict(response.headers or {})
-        except Exception:
-            headers = {}
-
-        if headers:
-            print("[mailer] SendGrid headers:")
-            for k in sorted(headers.keys()):
-                v = headers.get(k)
-                # 너무 길면 컷
-                if isinstance(v, str) and len(v) > 200:
-                    v = v[:200] + "…"
-                print(f"  - {k}: {v}")
-        else:
-            print("[mailer] SendGrid headers: (empty)")
-
+        print("SendGrid status:", response.status_code)
+        print("From:", actual_from)
+        print("To:", recipients)
     except Exception as e:
-        print("[mailer] SendGrid error:", repr(e))
+        print("SendGrid error:", e)
         raise
