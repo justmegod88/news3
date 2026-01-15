@@ -104,7 +104,7 @@ exclude_sources:
 # 이메일 설정
 # =========================
 email:
-  from: skim228@its.jnj.com
+  from: "skim228@its.jnj.com"
   to:
     - skim228@its.jnj.com
   
