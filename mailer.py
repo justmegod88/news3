@@ -1,35 +1,85 @@
 import os
+import base64
+from typing import List, Optional
+
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
-import json
+from sendgrid.helpers.mail import (
+    Mail,
+    Attachment,
+    FileContent,
+    FileName,
+    FileType,
+    Disposition,
+    ContentId,
+)
 
 
-def send_email_html(subject, html_body, from_addr, to_addrs):
+def _find_logo_path() -> Optional[str]:
     """
-    ✅ SendGrid 메일 발송 + 디버그 강화 버전
-    - status_code, headers(x-message-id 포함), body, to/from 로그
-    - 202인데 실제로 안 오는 경우 원인 파악용
+    로고 파일 위치를 유연하게 찾음:
+    - ./assets/acuvue_logo.png
+    - ./acuvue_logo.png
     """
+    candidates = [
+        os.path.join("assets", "acuvue_logo.png"),
+        "acuvue_logo.png",
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def _make_inline_png_attachment(path: str, cid: str) -> Attachment:
+    with open(path, "rb") as f:
+        data = f.read()
+    encoded = base64.b64encode(data).decode("utf-8")
+
+    att = Attachment()
+    att.file_content = FileContent(encoded)
+    att.file_type = FileType("image/png")
+    att.file_name = FileName(os.path.basename(path))
+    att.disposition = Disposition("inline")
+    att.content_id = ContentId(cid)  # 템플릿에서 src="cid:acuvue_logo"
+    return att
+
+
+def _mask_key(k: str) -> str:
+    if not k:
+        return ""
+    k = k.strip()
+    if len(k) <= 8:
+        return "*" * len(k)
+    return f"{k[:4]}...{k[-4:]}"
+
+
+def send_email_html(
+    subject: str,
+    html_body: str,
+    from_addr: str,
+    to_addrs: List[str],
+):
+    """SendGrid API를 이용해 HTML 메일 발송 (로고 CID inline 포함)"""
+
     api_key = os.getenv("SENDGRID_API_KEY")
     if not api_key:
-        print("❌ SENDGRID_API_KEY 환경변수가 없습니다.")
-        return
+        raise RuntimeError("SENDGRID_API_KEY 환경변수가 설정되어 있지 않습니다.")
 
-    # 수신자 목록 처리
-    recipients = []
-    if isinstance(to_addrs, str):
-        recipients = [to_addrs]
-    elif isinstance(to_addrs, list):
-        recipients = to_addrs
+    actual_from = os.getenv("SENDGRID_FROM", from_addr)
+
+    override_to = os.getenv("SENDGRID_TO")
+    if override_to:
+        recipients = [x.strip() for x in override_to.split(",") if x.strip()]
     else:
-        print("❌ to_addrs 형식이 잘못되었습니다:", to_addrs)
-        return
+        recipients = to_addrs
 
-    # 발신자 확인
-    actual_from = from_addr or os.getenv("DEFAULT_FROM_EMAIL", "")
-    if not actual_from:
-        print("❌ 발신자(from) 주소가 없습니다.")
-        return
+    # ✅ 디버그(중요): Actions 로그에서 “진짜 여기까지 왔는지” 확인용
+    print("[mailer] send_email_html() called")
+    print("[mailer] subject:", subject)
+    print("[mailer] from:", actual_from)
+    print("[mailer] to:", recipients)
+    print("[mailer] html chars:", len(html_body or ""))
+    print("[mailer] SENDGRID_API_KEY:", _mask_key(api_key))
 
     message = Mail(
         from_email=actual_from,
@@ -38,43 +88,37 @@ def send_email_html(subject, html_body, from_addr, to_addrs):
         html_content=html_body,
     )
 
+    # ✅ 로고 CID 첨부
+    logo_path = _find_logo_path()
+    if logo_path:
+        message.attachment = _make_inline_png_attachment(logo_path, "acuvue_logo")
+        print(f"[mailer] inline logo attached: {logo_path} (cid=acuvue_logo)")
+    else:
+        print("[mailer] WARNING: acuvue_logo.png not found (assets/ or root). Logo will not show in Outlook.")
+
     try:
         sg = SendGridAPIClient(api_key)
         response = sg.send(message)
 
-        print("📤 [SendGrid] 메일 발송 요청 완료")
-        print("  ▶ Status:", response.status_code)
-        print("  ▶ From:", actual_from)
-        print("  ▶ To:", recipients)
-        print("  ▶ Subject:", subject)
-        print("  ▶ HTML length:", len(html_body))
-
-        # ✅ Header 상세 (x-message-id 확인용)
+        # ✅ 여기 3줄이 핵심: SendGrid에 “요청이 접수”됐는지 추적
+        print("[mailer] SendGrid status:", response.status_code)
+        # headers는 dict처럼 옴. 있으면 request-id / message-id 같은 식별자가 찍힘
         try:
-            headers_dict = dict(response.headers)
-            print("  ▶ Headers:", json.dumps(headers_dict, ensure_ascii=False))
-            if "x-message-id" in headers_dict:
-                print("  ▶ x-message-id:", headers_dict["x-message-id"])
-        except Exception as e:
-            print("  ⚠️ 헤더 출력 오류:", e)
+            headers = dict(response.headers or {})
+        except Exception:
+            headers = {}
 
-        # ✅ Body (에러 설명 등)
-        try:
-            body_text = (
-                response.body.decode("utf-8", errors="ignore")
-                if hasattr(response.body, "decode")
-                else str(response.body)
-            )
-            if body_text:
-                print("  ▶ Response body snippet:", body_text[:300])
-        except Exception as e:
-            print("  ⚠️ Body 출력 오류:", e)
-
-        # ✅ 성공/실패 표시
-        if response.status_code == 202:
-            print("✅ SendGrid가 요청을 정상 접수했습니다. (202)")
+        if headers:
+            print("[mailer] SendGrid headers:")
+            for k in sorted(headers.keys()):
+                v = headers.get(k)
+                # 너무 길면 컷
+                if isinstance(v, str) and len(v) > 200:
+                    v = v[:200] + "…"
+                print(f"  - {k}: {v}")
         else:
-            print("⚠️ SendGrid 응답 코드:", response.status_code)
+            print("[mailer] SendGrid headers: (empty)")
 
     except Exception as e:
-        print("❌ SendGrid 메일 발송 중 오류 발생:", repr(e))
+        print("[mailer] SendGrid error:", repr(e))
+        raise
