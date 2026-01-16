@@ -179,7 +179,7 @@ def _enforce_2to3_sentences(text: str, max_sentences: int = 3, max_chars: int = 
 # =========================
 # OpenAI calls / prompts
 # =========================
-def _call_openai_2to3_sentences(client, prompt: str, max_chars: int = 220) -> str:
+def _call_openai_2to3_sentences(client, prompt: str, max_chars: int = 105) -> str:
     r = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
@@ -202,6 +202,7 @@ def _prompt_compress_long_summary(title: str, summary: str) -> str:
 - [요약문]에 있는 사실만 유지 (새로운 사실/추측/해석/의미 부여 금지)
 - 과장/홍보 문구 금지
 - 기사 '출처(언론사)'를 제품/브랜드/제조사로 표현하지 말 것
+- 기사에 '출시'라는 단어를 명확히 언급한 경우만 사용, 아니면 사용 절대 금지지
 - 안경테/렌즈/제품의 브랜드명은 [요약문]에 명확히 언급된 경우에만 사용
 - 브랜드가 불명확하면 특정 주체를 단정하지 말 것
 - 기사에 없는 단어 절대 사용 금지
@@ -227,6 +228,7 @@ def _prompt_title_only(title: str) -> str:
 
 🚫 절대 규칙 (위반 금지 / 정말 중요):
 - 제목에 명시되지 않은 사실, 배경, 원인, 결과를 절대 추가하지 말 것
+- 기사에 '출시'라는 단어를 명확히 언급한 경우만 사용, 아니면 사용 절대 금지
 - 기사 본문을 추측하거나 일반적인 맥락을 보완하지 말 것
 - “~로 보인다”, “~할 것으로 예상된다”, “~의미가 있다” 같은 해석 금지
 - 제목에 없는 숫자/주체/행위/시점/목적을 새로 만들지 말 것
@@ -241,7 +243,7 @@ def _prompt_title_only(title: str) -> str:
 출력:
 - 사실 진술형 문장만
 - 2~3문장
-- 200자 이내
+- 105자 이내
 - 과장/해석/평가 표현 금지
 
 [제목]
@@ -259,6 +261,7 @@ def _prompt_summarize_from_body(title: str, body_text: str) -> str:
 규칙(매우 중요):
 - 과장/추측/해석 금지, 본문에 있는 사실만
 - 기사 '출처(언론사)'를 제품/브랜드/제조사로 표현하지 말 것
+- 기사에 '출시'라는 단어를 명확히 언급한 경우만 사용, 아니면 사용 절대 금지
 - 안경테/렌즈/제품의 브랜드명은 본문에 명확히 언급된 경우에만 사용
 - 브랜드가 불명확하면 특정 주체를 단정하지 말 것
 - 기사에 없는 단어 절대 사용 금지
