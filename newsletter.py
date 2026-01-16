@@ -126,9 +126,9 @@ def _pick_representative(group):
 
 
 # =========================
-# ✅ (C) 기사 리스트용 중복 제거 + 묶기 (기존 유지: threshold=0.78)
+# ✅ (C) 기사 리스트용 중복 제거 + 묶기 (기존 유지: threshold=0.75)
 # =========================
-def dedupe_and_group_articles(articles, threshold: float = 0.78):
+def dedupe_and_group_articles(articles, threshold: float = 0.75):
     """
     반환: 대표 기사 리스트
     대표 기사에는 rep.duplicates = [{source, link, title}, ...] 가 생김
@@ -232,7 +232,7 @@ def remove_cross_category_duplicates(*category_lists):
 
 
 # =========================
-# ✅ (E) 브리핑(상단 요약) 전용 중복 제거: threshold=0.78 (요청 반영)
+# ✅ (E) 브리핑(상단 요약) 전용 중복 제거: threshold=0.75 (요청 반영)
 # =========================
 def _brief_norm(s: str) -> str:
     s = (s or "").lower().strip()
@@ -284,7 +284,7 @@ def dedupe_for_brief(articles, threshold: float = 0.70, max_keep: int = 10):
 
 
 # =========================
-# ✅ (F) 브리핑 입력 후보 선택 (카테고리 분산 + 빈 summary 제외) + 브리핑 전용 dedupe(0.78)
+# ✅ (F) 브리핑 입력 후보 선택 (카테고리 분산 + 빈 summary 제외) + 브리핑 전용 dedupe(0.75)
 # =========================
 def _has_summary(a) -> bool:
     s = (getattr(a, "summary", "") or "").strip()
@@ -386,8 +386,8 @@ def main():
     # 6) 최종 안전 필터
     articles = [a for a in articles if not should_exclude_article(a.title, a.summary)]
 
-    # ✅ 7) 기사 리스트용 중복 묶기(기존 유지: 0.78)
-    articles = dedupe_and_group_articles(articles, threshold=0.78)
+    # ✅ 7) 기사 리스트용 중복 묶기(기존 유지: 0.75)
+    articles = dedupe_and_group_articles(articles, threshold=0.75)
 
     # 8) 분류
     categorized = categorize_articles(articles)
@@ -401,7 +401,7 @@ def main():
         categorized.eye_health,
     )
 
-    # ✅ 10) 상단 브리핑(브리핑 전용 dedupe=0.78 적용된 picked로 요약)
+    # ✅ 10) 상단 브리핑(브리핑 전용 dedupe=0.75 적용된 picked로 요약)
     summary = build_yesterday_ai_brief(
         acuvue_list,
         company_list,
