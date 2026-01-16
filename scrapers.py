@@ -56,7 +56,7 @@ AGGREGATOR_BLOCK_HOSTS = [
     "msn.com", "www.msn.com",
     "flipboard.com", "www.flipboard.com",
     "smartnews.com", "www.smartnews.com",
-    "newsbreak.com", "www.newsbreak.com","kyosu.net","www.kyosu.net","investing.com",
+    "newsbreak.com", "www.newsbreak.com","kyosu.net","www.kyosu.net","kr.investing.com","investing.com",
 ]
 
 # ✅ (추가) 구글뉴스 RSS에서 링크가 news.google.com으로 남는 경우가 많아서
@@ -111,7 +111,9 @@ AD_SNIPPET_HINTS = [
 ETC_HINTS = [
     "테슬라", "자동차", "제약", "바이오","백신","얀센","컨슈머","서지컬","치료제","메디컬", "개원", "모금", 
     "환청",#"진료", 
-    "아산아이톡안과", "이웃사랑", "환자", "베드로안경원","강남스마일안과", "무신사", "investing", "샤르망","연말정산","사설", "체납",
+    "아산아이톡안과", "이웃사랑", "환자", "베드로안경원","강남스마일안과", "무신사", "investing", "샤르망","연말정산","사설", "체납","안과병원",
+    "작가","에세이","소설",
+    
 ]
 
 # 광학/렌즈 업계 화이트리스트
