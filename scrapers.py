@@ -38,7 +38,7 @@ class Article:
 # Exclusion rules
 # =========================
 FINANCE_KEYWORDS = [
-    "주가", "주식", "증시", "투자", "재무", "실적",
+    "주가", "주식", "증시", "투자", "재무", "실적", "투자 전략", "투자처",
     "매출", "영업이익", "순이익", "배당", "부동산",
     "상장", "ipo", "공모", "증권", "리포트", "선물",
     "목표주가", "시가총액", "ir", "주주", "관련주","카드","금융",
@@ -48,7 +48,8 @@ FINANCE_KEYWORDS = [
 YAKUP_BLOCK_HOSTS = [
     "yakup.com", "www.yakup.com",
     "yakup.co.kr", "www.yakup.co.kr",
-    "kyosu.net","www.kyosu.net","kr.investing.com","investing.com", "www.kr.investing.com",
+    "kyosu.net","www.kyosu.net","kr.investing.com","investing.com", "www.kr.investing.com",    
+    "simplywall.st",
 ]
 YAKUP_BLOCK_TOKENS = ["약업", "약업신문", "약학신문", "yakup"]
 
