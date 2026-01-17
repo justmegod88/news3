@@ -42,8 +42,10 @@ class Article:
 YAKUP_BLOCK_HOSTS = [
     "yakup.com", "www.yakup.com",
     "yakup.co.kr", "www.yakup.co.kr",
-    "kyosu.net","www.kyosu.net","kr.investing.com","investing.com", "www.kr.investing.com",    
-    "simplywall.st",
+    "kyosu.net","www.kyosu.net",
+    "www.kr.investing.com","www.investing.com",
+    "www.kr.investing.com",    
+    "www.simplywall.st",
 ]
 YAKUP_BLOCK_TOKENS = ["약업", "약업신문", "약학신문", "yakup"]
 
