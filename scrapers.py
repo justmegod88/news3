@@ -89,6 +89,13 @@ PERSONNEL_HINTS = [
     "취임", "영입", "양성",
 ]
 
+# 복지/ 모금
+volunteer_HINTS = [
+    "봉사","사회복지","봉사단","안경 지원", "지역 주민","봉사 활동", "복지",    
+]
+
+
+
 # 가수 다비치 (화이트리스트만 살림)
 DAVICHI_SINGER_NAMES = ["강민경", "이해리"]
 DAVICHI_SINGER_HINTS = [
@@ -111,14 +118,15 @@ AD_SNIPPET_HINTS = [
     "논란", "깜짝", "지금 다운로드", "지금 클릭", "지금 확인",
 ]
 
-# 기타 문구 (그외 삭제하고 싶은 워딩_수정)
+# 기타 문구 (완전 삭제하고 싶은 워딩_수정)
 ETC_HINTS = [
     "테슬라", "자동차", "제약", "바이오","백신","얀센","컨슈머","서지컬","치료제","메디컬", "개원", "모금", 
     "환청",#"진료", 
     "아산아이톡안과", "이웃사랑", "환자", "베드로안경원","강남스마일안과", "무신사", "investing", "샤르망","연말정산","사설", "체납","안과병원",
-    "작가","에세이","소설", "한국어",
-    
+    "작가","에세이","소설", "한국어",    
 ]
+
+
 
 # 광학/렌즈 업계 화이트리스트
 INDUSTRY_WHITELIST = [
@@ -316,8 +324,12 @@ def should_exclude_article(title: str, summary: str = "", is_naver: bool = False
         if any(h in summary for h in AD_SNIPPET_HINTS):
             return True
 
-  
+   # 봉사 
+    if any(h in full for h in volunteer_HINTS):
+        if not _has_industry_whitelist(full):
+            return True   
 
+    
     # ✅ 7) 요약이 너무 짧은 카드형 문구 제거
     # ✅ 네이버 기사(is_naver=True)에는 적용하지 않음
     if (not is_naver) and summary and len(summary) < 40:
