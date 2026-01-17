@@ -178,10 +178,15 @@ def dedupe_and_group_articles(articles, threshold: float = 0.75):
             ex_title = getattr(ex, "title", "") or ""
             ex_summary = getattr(ex, "summary", "") or ""
 
-            if base_summary and ex_summary:
-                sim = _similarity(base_summary, ex_summary)
-            else:
-                sim = _similarity(base_title, ex_title)
+            # ✅ 제목 유사도를 우선으로 사용 (요약은 기사마다 표현이 달라서 중복이 안 잡히는 경우가 많음)
+            title_sim = _similarity(base_title, ex_title)
+
+            # 요약은 "보조"로만 사용 (둘 다 있고, 어느 정도 길이가 있을 때만)
+            summary_sim = 0.0
+            if base_summary and ex_summary and len(base_summary) >= 80 and len(ex_summary) >= 80:
+                summary_sim = _similarity(base_summary, ex_summary)
+
+            sim = max(title_sim, summary_sim)
 
             if sim >= threshold:
                 existing_grp.extend(grp)
