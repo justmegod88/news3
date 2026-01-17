@@ -190,7 +190,10 @@ PRESS_DOMAIN_MAP_BASE = {
    "domin.co.kr": "전북도민일보",
    "cctimes.kr": "충청타임즈",
    "stardailynews": "스타데일리",
-    
+   "mksports.co.kr":"mk스포츠",
+   "newdaily.co.kr": "뉴데일리",
+   "osen.co.kr": "osen",
+   "topstarnews.net": "탑스타뉴스",
     
 
 
