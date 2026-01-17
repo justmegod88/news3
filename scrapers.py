@@ -45,9 +45,9 @@ YAKUP_BLOCK_HOSTS = [
     "kyosu.net","www.kyosu.net",
     "www.kr.investing.com","www.investing.com",
     "www.kr.investing.com",    
-    "www.simplywall.st",
+    "www.simplywall.st","simplywall.st",
 ]
-YAKUP_BLOCK_TOKENS = ["약업", "약업신문", "약학신문", "yakup"]
+YAKUP_BLOCK_TOKENS = ["약업", "약업신문", "약학신문", "yakup","simplywall"]
 
 # ✅ 재배포/애그리게이터(원문 아닌 경우가 많아서 날짜 오염 유발) - 우선 차단
 AGGREGATOR_BLOCK_HOSTS = [
