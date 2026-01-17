@@ -167,6 +167,11 @@ def dedupe_and_group_articles(articles, threshold: float = 0.75):
             seen_ref.add(gid)
             uniq_cands.append(g)
 
+        # ✅ [수정 1곳] 버킷이 안 잡혀서 비교 자체를 못 하는 경우를 막기 위한 fallback
+        # (버킷 후보가 없으면 최근 그룹 일부와라도 비교해서 0.78 같은 케이스를 잡도록)
+        if not uniq_cands:
+            uniq_cands = merged_groups[-50:]  # 필요시 50만 조절
+
         merged = False
         for existing_grp in uniq_cands:
             ex = existing_grp[0]
