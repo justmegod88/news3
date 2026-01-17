@@ -37,14 +37,8 @@ class Article:
 # =========================
 # Exclusion rules
 # =========================
-FINANCE_KEYWORDS = [
-    "주가", "주식", "증시", "투자", "재무", "실적", "투자 전략", "투자처",
-    "매출", "영업이익", "순이익", "배당", "부동산",
-    "상장", "ipo", "공모", "증권", "리포트", "선물",
-    "목표주가", "시가총액", "ir", "주주", "관련주","카드","금융",
-]
 
-# ✅ 약업(야쿠프/약업신문) 도메인: 날짜 오류(과거 기사 유입) 방지용
+# ✅도메인: 날짜 오류(과거 기사 유입) 방지용
 YAKUP_BLOCK_HOSTS = [
     "yakup.com", "www.yakup.com",
     "yakup.co.kr", "www.yakup.co.kr",
@@ -70,6 +64,14 @@ AGGREGATOR_BLOCK_SOURCES = [
     "newsbreak",
 ]
 
+# 투자/ 부동산 (완전제외)
+FINANCE_KEYWORDS = [
+    "주가", "주식", "증시", "투자", "재무", "실적", "투자 전략", "투자처",
+    "매출", "영업이익", "순이익", "배당", "부동산",
+    "상장", "ipo", "공모", "증권", "리포트", "선물",
+    "목표주가", "시가총액", "ir", "주주", "관련주","카드","금융",
+]
+
 # 연예 / 예능 / 오락
 ENTERTAINMENT_HINTS = [
     "연예", "연예인", "예능", "방송", "드라마", "영화",
@@ -79,7 +81,7 @@ ENTERTAINMENT_HINTS = [
     "팬미팅", "콘서트", "인간극장", "극장",
 ]
 
-# 인사 / 승진
+# 인사 / 승진 (화이트리스트만 살림)
 PERSONNEL_HINTS = [
     "인사", "임원 인사", "승진", "선임", "발탁",
     "대표이사", "사장", "부사장", "전무", "상무",
@@ -87,7 +89,7 @@ PERSONNEL_HINTS = [
     "취임", "영입", "양성",
 ]
 
-# 가수 다비치
+# 가수 다비치 (화이트리스트만 살림)
 DAVICHI_SINGER_NAMES = ["강민경", "이해리"]
 DAVICHI_SINGER_HINTS = [
     "가수", "음원", "신곡", "컴백", "앨범", "연예인", "개그맨", "연기", "배우",
@@ -276,10 +278,8 @@ def should_exclude_article(title: str, summary: str = "", is_naver: bool = False
     full = _normalize(title + " " + summary)
 
     # ✅ (추가) 무신사/K패션 잡음 제거
-    # - 화이트리스트(콘택트렌즈 등) 있으면 살림
     if any(h in full for h in FASHION_HINTS):
-        if not _has_industry_whitelist(full):
-            return True
+        return True
 
     # ✅ 1) 투자/재무: 화이트리스트 있어도 무조건 제거
     if any(k in full for k in FINANCE_KEYWORDS):
