@@ -34,10 +34,32 @@ jobs:
           echo "UTC now: $(date -u)"
           echo "KST now: $(TZ=Asia/Seoul date)"
 
+
       - name: Run newsletter script
         env:
           TZ: Asia/Seoul
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+
+          # ✅ Brevo SMTP (NEW)
+          BREVO_SMTP_USER: ${{ secrets.BREVO_SMTP_USER }}
+          BREVO_SMTP_PASSWORD: ${{ secrets.BREVO_SMTP_PASSWORD }}
+
+          # ✅ 발신자 표시용 (선택: secrets로 두면 편함)
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          FROM_NAME: ${{ secrets.FROM_NAME }}
+
+          # (선택) 호스트/포트 기본값 쓰면 생략 가능
+          # BREVO_SMTP_HOST: smtp-relay.brevo.com
+          # BREVO_SMTP_PORT: "587"
         run: |
-          python newsletter.py
+          python newsletter.py  
+      
+      
+      
+    #  - name: Run newsletter script
+    #    env:
+   #       TZ: Asia/Seoul
+  #        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+   #       SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+ #       run: |
+ #         python newsletter.py
