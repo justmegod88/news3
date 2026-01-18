@@ -2,13 +2,8 @@ name: Daily News Newsletter
 
 on:
   schedule:
-   # - cron: "40 23 * * *"  
-   # 매일 UTC 23:40 = 한국시간 08:40
-   # ✅ 매일 UTC 00:00 = 한국시간(KST) 오전 09:00
-     - cron: "0 0 * * *"
- 
+    - cron: "0 0 * * *"  # UTC 00:00 = KST 09:00
   workflow_dispatch:
-
 
 jobs:
   run-newsletter:
@@ -28,38 +23,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # ✅ 실제 실행 시각을 로그로 확인 (UTC & KST 같이 출력)
       - name: Debug time (UTC & KST)
         run: |
           echo "UTC now: $(date -u)"
           echo "KST now: $(TZ=Asia/Seoul date)"
-
 
       - name: Run newsletter script
         env:
           TZ: Asia/Seoul
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-          # ✅ Brevo SMTP (NEW)
+          # ✅ Brevo SMTP
           BREVO_SMTP_USER: ${{ secrets.BREVO_SMTP_USER }}
           BREVO_SMTP_PASSWORD: ${{ secrets.BREVO_SMTP_PASSWORD }}
 
-          # ✅ 발신자 표시용 (선택: secrets로 두면 편함)
+          # ✅ (선택) 기본값 써도 됨: mailer.py에서 기본이 smtp-relay.brevo.com:587
+          BREVO_SMTP_HOST: smtp-relay.brevo.com
+          BREVO_SMTP_PORT: "587"
+
+          # ✅ (선택) 테스트/표시용
           # FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
           # FROM_NAME: ${{ secrets.FROM_NAME }}
+          # OVERRIDE_TO: ${{ secrets.OVERRIDE_TO }}
 
-          # (선택) 호스트/포트 기본값 쓰면 생략 가능
-          # BREVO_SMTP_HOST: smtp-relay.brevo.com
-          # BREVO_SMTP_PORT: "587"
         run: |
-          python newsletter.py  
-      
-      
-      
-    #  - name: Run newsletter script
-    #    env:
-   #       TZ: Asia/Seoul
-  #        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-   #       SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
- #       run: |
- #         python newsletter.py
+          python newsletter.py
