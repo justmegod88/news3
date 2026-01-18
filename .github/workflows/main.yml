@@ -42,9 +42,9 @@ jobs:
           BREVO_SMTP_PORT: "587"
 
           # ✅ (선택) 테스트/표시용
-          # FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
           # FROM_NAME: ${{ secrets.FROM_NAME }}
-          # OVERRIDE_TO: ${{ secrets.OVERRIDE_TO }}
+          OVERRIDE_TO: ${{ secrets.OVERRIDE_TO }}
 
         run: |
           python newsletter.py
