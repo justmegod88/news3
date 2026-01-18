@@ -45,8 +45,8 @@ jobs:
           BREVO_SMTP_PASSWORD: ${{ secrets.BREVO_SMTP_PASSWORD }}
 
           # ✅ 발신자 표시용 (선택: secrets로 두면 편함)
-          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
-          FROM_NAME: ${{ secrets.FROM_NAME }}
+          # FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          # FROM_NAME: ${{ secrets.FROM_NAME }}
 
           # (선택) 호스트/포트 기본값 쓰면 생략 가능
           # BREVO_SMTP_HOST: smtp-relay.brevo.com
