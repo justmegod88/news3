@@ -402,6 +402,10 @@ def clean_summary(raw):
     text = raw or ""
     text = re.sub(r"<.*?>", " ", text)
     text = re.sub(r"https?://\S+", " ", text)
+  
+    # ✅ 추가: https 없이 붙는 도메인 텍스트 제거 (요약 끝에 사이트명 붙는 케이스)
+    text = re.sub(r"\b[a-z0-9\-]+\.(?:co\.kr|or\.kr|go\.kr|ac\.kr|com|net|org|kr|st)\b", " ", text, flags=re.I)    
+  
     text = html.unescape(text)
     return re.sub(r"\s+", " ", text).strip()
 
