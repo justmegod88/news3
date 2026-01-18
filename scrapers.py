@@ -565,13 +565,11 @@ def fetch_from_google_news(query, source_name, tz, cfg=None):
             if _is_aggregator_source(raw_source):
                 continue
 
-            # ✅ source가 도메인처럼 보이면 매핑으로 "언론사명" 변환 (없으면 기존 유지)
             source = raw_source
             if _looks_like_domain(raw_source):
                 mapped = press_map.get(_strip_www(raw_source), "")
-                if mapped:
-                    source = mapped
-
+                # ✅ 매핑이 없으면 도메인을 노출하지 말고, source_name(예: GoogleNews/업계지명)로 대체
+                source = mapped if mapped else source_name
             if should_exclude_article(title, summary, is_naver=False):
                 continue
 
