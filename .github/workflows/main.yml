@@ -43,7 +43,7 @@ jobs:
 
           # ✅ (선택) 테스트/표시용
           FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
-          # FROM_NAME: ${{ secrets.FROM_NAME }}
+          FROM_NAME: ${{ secrets.FROM_NAME }}
           OVERRIDE_TO: ${{ secrets.OVERRIDE_TO }}
 
         run: |
