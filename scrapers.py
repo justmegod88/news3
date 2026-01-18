@@ -45,7 +45,7 @@ YAKUP_BLOCK_HOSTS = [
     "kyosu.net","www.kyosu.net",
     "www.kr.investing.com","www.investing.com",
     "www.kr.investing.com",    
-    "www.simplywall.st","simplywall.st",
+    "www.simplywall.st","simplywall.st","topstarnews.net","www.topstarnews.net",
 ]
 YAKUP_BLOCK_TOKENS = ["약업", "약업신문", "약학신문", "yakup","simplywall"]
 
@@ -133,7 +133,7 @@ ETC_HINTS = [
 # 광학/렌즈 업계 화이트리스트
 INDUSTRY_WHITELIST = [
     "노안 렌즈", 
-    "렌즈", "콘택트렌즈", "오렌즈", 
+    "콘택트렌즈", "오렌즈", 
     "콘택트 렌즈", "contact lens",
     "아큐브", "acuvue",
     "알콘 렌즈", "쿠퍼비전", "바슈롬", "쿠퍼 비젼",
@@ -193,7 +193,7 @@ PRESS_DOMAIN_MAP_BASE = {
    "mksports.co.kr":"mk스포츠",
    "newdaily.co.kr": "뉴데일리",
    "osen.co.kr": "osen",
-   "topstarnews.net": "탑스타뉴스",
+
     
 
 
