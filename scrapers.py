@@ -820,7 +820,7 @@ def fetch_all_articles(cfg):
 
 def filter_yesterday_articles(articles, cfg):
     tz = _get_tz(cfg)
-    y = _safe_now(tz).date() - dt.timedelta(days=2)
+    y = _safe_now(tz).date() - dt.timedelta(days=1)
     return [a for a in articles if a.published.date() == y]
 
 
