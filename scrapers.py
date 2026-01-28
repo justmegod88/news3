@@ -46,7 +46,7 @@ YAKUP_BLOCK_HOSTS = [
     "www.kr.investing.com","www.investing.com",
     "www.kr.investing.com",    
     "www.simplywall.st","simplywall.st","topstarnews.net","www.topstarnews.net",
-    "www.pinpointnews.co.kr", "pinpointnews.co.kr",
+   # "www.pinpointnews.co.kr", "pinpointnews.co.kr",
 ]
 YAKUP_BLOCK_TOKENS = ["약업", "약업신문", "약학신문", "yakup","simplywall"]
 
@@ -54,7 +54,7 @@ YAKUP_BLOCK_TOKENS = ["약업", "약업신문", "약학신문", "yakup","simplyw
 AGGREGATOR_BLOCK_HOSTS = [
     "msn.com", "www.msn.com",
     "flipboard.com", "www.flipboard.com",
-    "smartnews.com", "www.smartnews.com",
+    #"smartnews.com", "www.smartnews.com",
     "newsbreak.com", "www.newsbreak.com",
 ]
 
@@ -63,7 +63,7 @@ AGGREGATOR_BLOCK_HOSTS = [
 AGGREGATOR_BLOCK_SOURCES = [
     "msn",
     "flipboard",
-    "smartnews",
+    #"smartnews",
     "newsbreak",
 ]
 
@@ -106,7 +106,7 @@ DAVICHI_SINGER_HINTS = [
     "뮤지컬", "뮤지션", "1위", "콘서트", "공연", "뮤직비디오",
     "강민경", "이해리", "개그", "듀오", "카메라", "드라마", "연극", "탤런트",
     "차트", "유튜브", "방송", "예능", "ost", "연예", "무대", "히든싱어", "가요",
-    "음악", "시상식", "프로그램",
+    "음악", "시상식", "프로그램","지드래곤",
 ]
 
 # 얼굴/뷰티 노안
@@ -145,7 +145,7 @@ INDUSTRY_WHITELIST = [
 # - 단, INDUSTRY_WHITELIST가 있으면 살림
 FASHION_HINTS = [
     "k패션", "패션", "의류", "룩북", "컬렉션", "오프화이트",
-    "스타일", "코디", "브랜드", "쇼핑", "온라인몰", "패션플랫폼", "편집숍"
+    "스타일", "코디", "브랜드", "쇼핑", "온라인몰", "패션플랫폼", "편집숍", "케이스티파이",
 ]
 
 
