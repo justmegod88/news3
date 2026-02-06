@@ -46,7 +46,7 @@ YAKUP_BLOCK_HOSTS = [
     "www.kr.investing.com","www.investing.com",
     "www.kr.investing.com",    
     "www.simplywall.st","simplywall.st","topstarnews.net","www.topstarnews.net",
-   # "www.pinpointnews.co.kr", "pinpointnews.co.kr",
+    "www.pinpointnews.co.kr", "pinpointnews.co.kr",
 ]
 YAKUP_BLOCK_TOKENS = ["약업", "약업신문", "약학신문", "yakup","simplywall"]
 
@@ -127,7 +127,7 @@ ETC_HINTS = [
     "환청",#"진료", 
     "아산아이톡안과", "이웃사랑", "환자", "베드로안경원","강남스마일안과", "무신사", "investing", "샤르망","연말정산","사설", "체납","안과병원",
     "작가","에세이","소설", "한국어","봉합사","스텔라라","눈썰매","농촌체험","뇌경색","물리치료사", "광주신세계안과","안내렌즈삽입술","CES 2026",
-    "장길현","더블어민주당","고성군의원","세미콘 코리아","반도체",
+    "장길현","더블어민주당","고성군의원","세미콘 코리아","반도체","원자력",
 ]
 
 
