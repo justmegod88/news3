@@ -16,7 +16,7 @@ try:
     from zoneinfo import ZoneInfo
 except Exception:
     ZoneInfo = None
-L
+
 GOOGLE_NEWS_RSS_BASE = "https://news.google.com/rss/search"
 
 
