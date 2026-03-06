@@ -393,6 +393,35 @@ def main():
     # 5) 기사별 요약(summary 정제/생성)
     refine_article_summaries(articles)
 
+    # ✅ ACUVUE 광고성 요약 문구 보정
+    for a in articles:
+        title_raw = getattr(a, "title", "") or ""
+        summary_raw = getattr(a, "summary", "") or ""
+        title = title_raw.lower()
+
+        if "아큐브" in title or "acuvue" in title:
+            summary = summary_raw
+
+            # 광고 카피 설명형 문장 제거
+            summary = re.sub(
+                r"이 주제는 .*?(탐구|의미).*?\.",
+                "",
+                summary
+            )
+
+            # '주제를 다룬다' 식의 광고성 설명을 뉴스형 문장으로 보정
+            summary = re.sub(
+                r"아큐브는 .*?주제를 다룬다\.",
+                "아큐브는 시각 경험을 주제로 한 브랜드 캠페인을 공개했다.",
+                summary
+            )
+
+            # 보정 후 너무 짧아지면 기본 뉴스형 문장 사용
+            if len(summary.strip()) < 20:
+                summary = "아큐브는 시각 경험을 주제로 한 브랜드 캠페인을 공개했다."
+
+            a.summary = re.sub(r"\s+", " ", summary).strip()
+
     # 6) 최종 안전 필터
     articles = [a for a in articles if not should_exclude_article(a.title, a.summary)]
 
