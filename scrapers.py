@@ -47,7 +47,8 @@ YAKUP_BLOCK_HOSTS = [
     "www.kr.investing.com",    
     "www.simplywall.st","simplywall.st","topstarnews.net","www.topstarnews.net",
     "www.pinpointnews.co.kr", "pinpointnews.co.kr",
-    "www.slownews.kr","slownews.kr" 
+    "www.slownews.kr","slownews.kr", 
+    "www.newspim.com","newspim,com",
 ]
 YAKUP_BLOCK_TOKENS = ["약업", "약업신문", "약학신문", "yakup","simplywall"]
 
