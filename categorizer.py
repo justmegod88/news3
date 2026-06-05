@@ -18,8 +18,8 @@ class CategorizedArticles:
 # Keyword dictionaries
 # =========================
 ACUVUE = [
-    "아큐브", "acuvue",
-    "존슨앤드존슨 비전", "한국존슨앤드존슨 비전",
+    "아큐브", "acuvue", "아큐브 오아시스", "아큐브 MAX"
+    "존슨앤드존슨 비전", "한국존슨앤드존슨 비전", "한국존슨앤드존슨 비전케어"
     "johnson", "j&j", "jnj", "johnson & johnson vision",
 ]
 
